@@ -1,0 +1,29 @@
+# OneBullEx × FMZ Bridge
+
+> 把 FMZ（發明者量化）策略透過通用協議接到 OneBullEx 斯巴達機器人帳戶。AI 助手從 SKILL.md 開始。
+
+## 入口
+- SKILL.md: 給 AI 助手的流程與必須遵守的規則
+- README.md: 給人看的說明與交給 AI 助手的提示詞
+
+## 操作指南
+- references/01-overview.md: 架構、準備事項、已知限制（單向持倉、整數張、只支援永續）
+- references/02-server-setup.md: 租用 Linux 伺服器（AWS Lightsail 與其他 VPS）
+- references/03-install-and-verify.md: 安裝 bridge 與 FMZ 託管者、測試網驗證、FMZ 交易所設定、維運指令
+- references/04-strategy-guide.md: FMZ 函數對應、開平倉方向、數量換算、範例策略
+- references/05-go-live.md: 切換正式環境的檢查清單
+- references/06-troubleshooting.md: 錯誤訊息對照
+- references/07-convert-strategy.md: 合約寫法策略的轉換流程（掃描、轉換、另存、驗證）
+
+## 程式
+- bridge/onebullex_fmz_plugin.py: 轉接程式
+- bridge/install_server.sh: 伺服器安裝腳本（adapter、docker、status）
+- bridge/check_testnet.py: 連線檢查
+- bridge/obx_tool.py: 餘額與轉帳
+- bridge/smoke_trade.py: 測試網下單測試
+- bridge/tests/test_plugin.py: 離線測試
+
+## 外部參考
+- 斯巴達策略方指南: https://github.com/Onebullex-dev/spartan-strategy-partner-skill
+- OneBullEx API 文件: https://doc.onebullex.com
+- FMZ 通用協議: https://www.fmz.com/user-guide/platform-basics/exchange/general-protocol
