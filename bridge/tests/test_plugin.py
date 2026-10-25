@@ -75,6 +75,8 @@ class Mock(BaseHTTPRequestHandler):
             if err:
                 return self.reply(None, 1, err)
 
+        if path == "/v2/public/symbol/all":
+            return self.reply(["btc_usdt", "eth_usdt", "btcspartans_usdt", "ethspartans_usdt", "xauspartans_usdt"])
         if path == "/v2/public/q/agg-ticker":
             return self.reply({"t": 1760500000000, "s": params["symbol"], "c": "61000", "h": "62000",
                                "l": "59000", "a": "1234", "v": "75000000", "o": "60000", "r": "0.016",
@@ -308,6 +310,32 @@ def main():
     check("剛下的單會等待後查到，不回錯誤", "data" in q and 0.4 < time.time() - t0 < 2.5, (q, time.time() - t0))
     t0 = time.time(); q = fmz("order", {"id": "BTC_USDT,999999"})
     check("真的不存在的單在約 2 秒後回錯誤", "查無此訂單" in q.get("error", "") and time.time() - t0 < 3.5, q)
+
+    # 14. 斯巴達專屬交易對與預設不限制
+    STATE["last_ticker_symbol"] = None
+    r = fmz("ticker", {"symbol": "BTCSPARTANS_USDT"})
+    check("斯巴達專屬交易對：BTCSPARTANS_USDT 查報價", r.get("data", {}).get("symbol") == "BTCSPARTANS_USDT", r)
+    saved_limits, saved_pos = adapter.limits, STATE["positions"]
+    adapter.limits = plugin.Limits(None, 0, 0, 0)   # 與安裝預設相同：不限交易對、張數、槓桿
+    adapter._states.clear()
+    STATE["positions"] = []
+    r = fmz("trade", {"symbol": "XAUSPARTANS_USDT", "type": "buy", "price": "-1", "amount": "500"})
+    body = STATE["last_body"] or {}
+    check("斯巴達專屬交易對：XAUSPARTANS_USDT 開多 500 張（預設不限張數）",
+          "data" in r and body.get("symbol") == "xauspartans_usdt" and body.get("origQty") in ("500", 500)
+          and r["data"]["id"].startswith("XAUSPARTANS_USDT,"), (r, body))
+    r = fmz("__api_/v2/position/adjust-leverage", {"symbol": "ethspartans_usdt", "leverage": "50"}, http_method="POST")
+    check("預設不限槓桿：exchange.IO 設 50 倍", r.get("data") == 50, r)
+    r = fmz("__api_/v2/public/q/symbol-mark-price", {"symbol": "BTCSPARTANS_USDT"})
+    check("exchange.IO 查詢時交易對名稱自動對應", (r.get("data") or {}).get("s") == "btcspartans_usdt", r)
+    adapter.limits, STATE["positions"] = saved_limits, saved_pos
+    saved_known = set(plugin.KNOWN_SYMBOLS)
+    plugin.KNOWN_SYMBOLS.clear(); plugin.KNOWN_SYMBOLS.update({"btc_usdt", "btcspartansusdt"})
+    check("交易所名稱沒有底線時也能對應",
+          plugin.to_ob_symbol("BTCSPARTANS_USDT") == "btcspartansusdt"
+          and plugin.to_fmz_symbol("btcspartansusdt") == "BTCSPARTANS_USDT",
+          (plugin.to_ob_symbol("BTCSPARTANS_USDT"), plugin.to_fmz_symbol("btcspartansusdt")))
+    plugin.KNOWN_SYMBOLS.clear(); plugin.KNOWN_SYMBOLS.update(saved_known)
 
     passed = sum(ok for _, ok in RESULTS)
     print(f"\n{passed}/{len(RESULTS)} 項通過")

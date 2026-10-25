@@ -11,7 +11,7 @@ OneBullEx x FMZ 通用協議轉接程式（合約版）
 
 啟動（預設連測試環境）：
     python3 onebullex_fmz_plugin.py
-    python3 onebullex_fmz_plugin.py --allowed-symbols btc_usdt,eth_usdt --max-order-qty 50
+    python3 onebullex_fmz_plugin.py --max-order-qty 50   # 選用：自己加單筆張數保護
 
 連正式環境必須明確加上 --env prod。
 
@@ -169,7 +169,7 @@ class OneBullExClient:
 
 
 # ---------------------------------------------------------------------------
-# 安全限制（轉接程式這一層的第一道防線；正式控管仍以伺服器端設定為準）
+# 選用的自我保護（預設不限制；由主機管理者自行設定，交易所端的規則仍以 OneBullEx 為準）
 # ---------------------------------------------------------------------------
 
 class Limits:
@@ -208,19 +208,36 @@ class Limits:
 # FMZ 請求 -> OneBullEx 轉換
 # ---------------------------------------------------------------------------
 
+# OneBullEx 的交易對清單（/v2/public/symbol/all），用來對應寫法不同的名稱，
+# 例如 FMZ 的 BTCSPARTANS_USDT 對應交易所的斯巴達專屬交易對。
+KNOWN_SYMBOLS = set()
+
+
+def _squash(s):
+    return s.replace("_", "").replace("-", "")
+
+
 def to_ob_symbol(fmz_symbol):
-    """BTC_USDT / BTC_USDT.swap / btc_usdt -> btc_usdt"""
+    """BTC_USDT / BTC_USDT.swap / btc_usdt -> btc_usdt；
+    BTCSPARTANS_USDT -> 交易所清單中對應的名稱（例如 btcspartans_usdt）"""
     s = str(fmz_symbol or "").strip()
     if not s:
         raise PluginError("缺少交易對（symbol）")
     s = s.split(".")[0].lower()
-    if "_" not in s:
-        raise PluginError(f"交易對格式錯誤：{fmz_symbol}，應為 BTC_USDT")
+    if KNOWN_SYMBOLS and s not in KNOWN_SYMBOLS:
+        for k in KNOWN_SYMBOLS:
+            if _squash(k) == _squash(s):
+                return k
+    if "_" not in s and s not in KNOWN_SYMBOLS:
+        raise PluginError(f"交易對格式錯誤：{fmz_symbol}，應為 BTC_USDT 或 BTCSPARTANS_USDT")
     return s
 
 
 def to_fmz_symbol(ob_symbol):
-    return str(ob_symbol).upper()
+    s = str(ob_symbol or "")
+    if s and "_" not in s and s.lower().endswith("usdt"):
+        s = s[:-4] + "_" + s[-4:]
+    return s.upper()
 
 
 def _f(v, default=0.0):
@@ -250,6 +267,20 @@ class Adapter:
         self.default_leverage = default_leverage
         self._states = {}
         self._lock = threading.Lock()
+        self._symbols_loaded_at = 0.0
+
+    def load_symbols(self, client, force=False):
+        """取得交易所的交易對清單（公開資料，每 10 分鐘最多更新一次）；失敗時沿用原本的名稱轉換。"""
+        if not force and time.time() - self._symbols_loaded_at < 600:
+            return
+        self._symbols_loaded_at = time.time()
+        try:
+            rows = client.request("GET", "/v2/public/symbol/all")
+            if isinstance(rows, list) and rows:
+                KNOWN_SYMBOLS.clear()
+                KNOWN_SYMBOLS.update(str(r).lower() for r in rows if r)
+        except Exception:
+            pass
 
     def state(self, api_key):
         with self._lock:
@@ -261,6 +292,7 @@ class Adapter:
         api_key = req.get("access_key", "")
         client = OneBullExClient(self.base_url, api_key, req.get("secret_key", ""), self.timeout)
         st = self.state(api_key)
+        self.load_symbols(client)
         if "symbol" in params and params["symbol"]:
             st.symbol = to_ob_symbol(params["symbol"])
 
@@ -614,6 +646,8 @@ class Adapter:
         if http_method.upper() != "GET":
             raise PluginError("exchange.IO 直通只開放 GET 查詢與調整槓桿；下單請用 exchange.Buy / Sell")
         private = not path.startswith("/v2/public/")
+        if params.get("symbol"):
+            params = dict(params, symbol=to_ob_symbol(params["symbol"]))
         return {"data": client.request("GET", path, params, private=private)}
 
 
@@ -668,10 +702,10 @@ def main():
     ap.add_argument("--host", default="127.0.0.1", help="監聽位址，預設只允許本機")
     ap.add_argument("--port", type=int, default=6666)
     ap.add_argument("--path", default="/OneBullEx", help="服務路徑，預設 /OneBullEx")
-    ap.add_argument("--allowed-symbols", default="btc_usdt,eth_usdt",
-                    help="允許交易的合約，逗號分隔；填 all 表示不限制")
-    ap.add_argument("--max-order-qty", type=int, default=100, help="單筆最大張數，0 表示不限制")
-    ap.add_argument("--max-leverage", type=int, default=20, help="最大槓桿，0 表示不限制")
+    ap.add_argument("--allowed-symbols", default="all",
+                    help="選用：只允許這些合約，逗號分隔；預設 all 表示不限制")
+    ap.add_argument("--max-order-qty", type=int, default=0, help="選用：單筆最大張數（防止下錯單），預設 0 表示不限制")
+    ap.add_argument("--max-leverage", type=int, default=0, help="選用：最大槓桿，預設 0 表示不限制")
     ap.add_argument("--max-orders-per-sec", type=int, default=5, help="每秒最多下單筆數，0 表示不限制")
     ap.add_argument("--default-leverage", type=int, default=0,
                     help="開倉預設槓桿（會先套用到合約設定）；0 表示沿用帳戶目前設定")

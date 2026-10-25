@@ -27,8 +27,11 @@
 | `not supported by Exchange` / `unsupported rest method` | FMZ 託管者擋下合約專屬函數（`SetContractType`、`SetMarginLevel`、`GetPositions`）。改用現貨寫法，見 `04-strategy-guide.md` |
 | `下單方向與 SetDirection 不符` | 只會出現在舊版託管者有轉送 `SetDirection` 時：方向與下單函數沒有成對 |
 | `合約數量必須是整數張` / `invalid_quantity` | 數量要換算成整數張 |
-| `不在允許清單內` | 合約不在 `OBX_ALLOWED`。要新增請先取得 OneBullEx 同意 |
-| `超過上限`（張數、槓桿、頻率） | 觸發安全限制。調整策略，或取得 OneBullEx 同意後修改設定檔 |
+| `不在允許清單內` | 主機的 `OBX_ALLOWED` 設了清單且不含此交易對。改成 `all` 或加入清單後重啟 bridge |
+| `超過上限`（張數、槓桿） | 主機設定檔或策略參數有自設的防呆值。確認是否真要下這麼大，再調整 `OBX_MAX_QTY`／`OBX_MAX_LEV` 或策略參數 |
+| `下單頻率超過每秒 5 筆上限` | 策略短時間內連續送單。先確認不是迴圈失控；網格等需要高頻掛單的策略可調高 `OBX_MAX_RATE`（交易所自身限頻仍適用） |
+| `交易對格式錯誤` / 專屬交易對查無資料 | FMZ 交易對要寫 `BTCSPARTANS_USDT` 這種有底線的形式。用 `python3 obx_tool.py symbols` 確認目前環境有此交易對 |
+| 專屬交易對張數換算不對 | 每個交易對面值不同，用 `python3 obx_tool.py spec <交易對>` 查 `contractSize` |
 | `沒有可平的多倉／空倉` / `超過可平數量` | 平倉前用 `exchange.IO` 查持倉確認數量 |
 | `invalid_price` | 價格精度或最小跳動不符。BTC 價格精度 1 位小數、最小跳動 0.1 |
 | `查無此訂單` | 下單為非同步；bridge 會自動等候約 2 秒再查。仍查不到時，稍後再查或確認訂單 ID |
@@ -55,7 +58,7 @@
 
 | 狀況 | 判讀與處理 |
 | --- | --- |
-| Pine印出下單/圖上有箭頭，bridge沒有trade | 不代表成交；檢查現貨分支的數量與Stocks語義，讀08，不要調高上限繞過 |
+| Pine印出下單/圖上有箭頭，bridge沒有trade | 不代表成交；檢查現貨分支的數量與Stocks語義，讀08 |
 | 權益10%算出0張 | 名目預算低於一張；依09換算，正常模式跳過，固定1張測試須明確同意 |
 | SIGNAL REVERSE_SHORT但只有from=1,target=0 | 這是平多；一回合模式平完就停，不會再開空 |
 | 更新參數失敗，要求停止狀態 | 先確認停止，再更新並讀回；不要把按了更新當成已套用 |

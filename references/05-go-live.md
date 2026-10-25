@@ -15,7 +15,8 @@
 
 - [ ] 已向 OneBullEx 申請**正式環境**機器人 API key，並綁定這台伺服器的固定 IP
 - [ ] API key 只開交易權限，沒有提幣權限
-- [ ] 與 OneBullEx 確認安全限制的數值（合約白名單、單筆張數、槓桿、下單頻率）
+- [ ] 確認要交易的交易對（斯巴達的 BTC、ETH、黃金建議用專屬交易對）與其合約面值：`python3 obx_tool.py spec <交易對>`
+- [ ] 決定槓桿設定方式（見 `04-strategy-guide.md`「槓桿」），以及是否要自設防呆（見 `09-quantity-and-risk.md`）
 - [ ] 機器人帳戶已完成認購，資金帳戶保留應付贖回的餘額
 
 ## 切換步驟
@@ -24,7 +25,7 @@
 
    ```bash
    sudo nano /etc/onebullex-fmz.env
-   # 把 OBX_ENV=test 改成 OBX_ENV=prod，並依 OneBullEx 確認的數值調整限制
+   # 把 OBX_ENV=test 改成 OBX_ENV=prod；需要時一併設定 OBX_DEFAULT_LEV 或自選的防呆
    sudo systemctl restart onebullex-fmz
    sudo bash ~/onebullex_fmz/install_server.sh status
    ```

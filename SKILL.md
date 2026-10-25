@@ -28,10 +28,10 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 | `references/06-troubleshooting.md` | 錯誤訊息對照與處理 |
 | `references/07-convert-strategy.md` | 策略轉換：語言分流、掃描、另存與驗證 |
 | `references/08-pine-compatibility.md` | Pine 現貨執行分支的數量/持倉問題、JS移植檢查表 |
-| `references/09-quantity-and-risk.md` | 幣數/張數/名目金額/保證金/風險換算、上限核對 |
+| `references/09-quantity-and-risk.md` | 幣數/張數/名目金額/保證金/風險換算、選用的防呆設定 |
 | `docs/HANDOVER.md` | 面向所有使用者的部署與驗收交接 |
 | `docs/VALIDATION.md` | 匿名驗證範圍；不得把未驗證項目當成功 |
-| `examples/alligator-fractal/README.md` | 完整Pine→JS範例、8參數、PAPER/LIVE與狀態恢復 |
+| `examples/alligator-fractal/README.md` | 完整Pine→JS範例、9參數（含張數、槓桿）、PAPER/LIVE與狀態恢復 |
 
 斯巴達本身的規則（資金帳戶與合約帳戶、認購贖回、分潤）以官方倉庫為準：https://github.com/Onebullex-dev/spartan-strategy-partner-skill
 
@@ -49,7 +49,9 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 ## 從實測保留的操作原則
 
 - **三種模式分開**：PAPER模擬帳本、bridge測試網、bridge正式環境不是同一設定。LIVE只代表程式可送單，不代表一定是正式網。先核對OBX_ENV、所選憑證、私有託管者與已加入的交易所標籤；不讀出金鑰。
-- **張數不可猜測**：Buy/Sell的amount是整數張，先查contractSize/minQty；1張只是初始驗證設定，不是所有使用者的永久限制。軟體預設100張也不代表帳戶已獲核准。低於1張跳過、超限阻擋，不自行進位或拆單。
+- **張數不可猜測**：Buy/Sell的amount是整數張，先查實際交易對的contractSize/minQty（`obx_tool.py spec`），斯巴達專屬交易對的面值可能與BTC_USDT不同。1張只是初始驗證設定；張數與槓桿由使用者的策略決定，bridge預設不限制。低於1張跳過、超過使用者自設的防呆就阻擋，不自行進位或拆單。
+- **斯巴達專屬交易對**：BTC、ETH、黃金建議用 `BTCSPARTANS_USDT`、`ETHSPARTANS_USDT`、`XAUSPARTANS_USDT`（風險限額較高）。轉換策略時提醒使用者，並用實際面值重算張數。
+- **槓桿**：`SetMarginLevel` 不被轉送；用 `exchange.IO` 的 adjust-leverage、主機 `OBX_DEFAULT_LEV` 或帳戶設定，見04「槓桿」。
 - **成交與反手**：參考04與examples的執行模組，查單確認全部成交與有效AvgPrice，再核對淨倉。只有訊號或訂單ID不能算完成；查詢失敗不能當空倉。平倉未確認不得開反向倉，Buy/Sell結果不明不得重送。
 - **保存狀態**：策略意圖與訂單journal都要在送單前保存；有未決狀態先人工對帳，不能清空後再試。不要用現貨Stocks推算合約持倉，也不要只依Offset判斷開平倉。
 - **解釋畫面**：REVERSE_SHORT等是訊號名稱，不代表已開空；from=1,target=0是平多。介面不同區塊可能更新不同步，重新整理後核對啟動時間、模式及成交紀錄。
@@ -61,7 +63,7 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 - **不要索取機密**：不要請使用者把 API Secret、FMZ 密碼、SSH 私鑰貼進對話。機密只能由使用者在自己的終端機輸入（環境變數、`install_server.sh` 的密碼提示）。如果使用者主動貼出，提醒他之後更換那組金鑰。
 - **不要替使用者執行付款或註冊帳號**：雲端主機的註冊、付款、選購方案由使用者自己完成。
 - **先測試網，後正式環境**：任何下單動作都先在測試網完成。切換 `OBX_ENV=prod` 前必須取得使用者明確同意，並確認 `05-go-live.md` 全部完成。
-- **不要移除或放寬安全限制**：`/etc/onebullex-fmz.env` 裡的合約白名單、單筆張數、槓桿、下單頻率是與 OneBullEx 約定的試點範圍。使用者想調整時，請他先取得 OneBullEx 同意；不要修改 bridge 程式碼來繞過限制。
+- **防呆設定由使用者決定**：`/etc/onebullex-fmz.env` 的 `OBX_ALLOWED`、`OBX_MAX_QTY`、`OBX_MAX_LEV` 預設不限制，`OBX_MAX_RATE` 預設每秒 5 筆。使用者可自行調整；修改前說明影響並取得他的同意。不要修改 bridge 程式碼。
 - **不要修改簽名、下單邏輯**：bridge 已在測試網驗證。遇到錯誤先查 `06-troubleshooting.md`，不要自行改寫核心程式；確定是程式問題時，整理錯誤訊息請使用者回報給 OneBullEx。
 - **改策略要另存、要先問**：轉換或修改使用者的 FMZ 策略時，先給他看改了什麼，同意後才儲存，並存成新策略，不覆蓋原策略。接 FMZ 官方 AI 接入時只申請 `read`、`write` 權限。
 - **會下單的動作由使用者確認**：在調試工具或實盤執行任何會下單的程式前，先說明會下幾張、在哪個環境，取得同意。不要替使用者啟動正式環境的實盤。

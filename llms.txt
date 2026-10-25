@@ -33,6 +33,6 @@
 - references/09-quantity-and-risk.md: 張數/幣數/名目金額/風險換算
 - docs/HANDOVER.md: 所有FMZ使用者的公開交接指南
 - docs/VALIDATION.md: 匿名驗證範圍與限制
-- examples/alligator-fractal/README.md: 完整Pine→JS範例與8個參數
+- examples/alligator-fractal/README.md: 完整Pine→JS範例與9個參數（含張數、槓桿）
 - scripts/package_public.py: 公開ZIP封裝
 - NOTICE.md: MIT與MPL-2.0授權範圍

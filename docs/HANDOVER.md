@@ -1,6 +1,6 @@
 # 公開交接指南：FMZ 接入 Spartans
 
-本包供每位FMZ使用者接入**自己的**Spartans bot。你需要自己的FMZ帳號、bot API憑證、雲端主機及核准交易範圍。不要沿用他人的主機、API key或測試實盤。
+本包供每位FMZ使用者接入**自己的**Spartans bot。你需要自己的FMZ帳號、bot API憑證與雲端主機。不要沿用他人的主機、API key或測試實盤。
 
 ## 1. 準備與安裝
 
@@ -18,12 +18,13 @@
 - Access Key / Secret Key 使用自己的OneBullEx bot憑證，**不是FMZ密碼或AWS金鑰**。
 - 可將FMZ交易所設定命名為 `OneBullEx-Spartans`，或自訂名稱並同步範例的 `AF_ACCOUNT_LABEL`。
 - 調試與實盤選安裝bridge的**私有託管者**，不要選自動分配或公用主機。
-- 建立實盤選好交易所後，還要按 **＋**，確認已出現 `設定名稱/BTC_USDT` 標籤。選單顯示的候選平台不是已加入的平台。
-- 先唯讀查行情、規格、餘額、持倉與掛單，再依核准測試流程送單。
+- 建立實盤選好交易所後，還要按 **＋**，確認已出現 `設定名稱/交易對` 標籤（例如 `OneBullEx-Spartans/BTCSPARTANS_USDT`）。選單顯示的候選平台不是已加入的平台。
+- 斯巴達的 BTC、ETH、黃金策略建議用專屬交易對 `BTCSPARTANS_USDT`、`ETHSPARTANS_USDT`、`XAUSPARTANS_USDT`；面值可能與一般交易對不同，見 [04](../references/04-strategy-guide.md)。
+- 先唯讀查行情、規格、餘額、持倉與掛單，再小量送單測試。
 
 ## 3. 選策略與數量
 
-JavaScript依 [04](../references/04-strategy-guide.md)調整。Pine先讀 [08](../references/08-pine-compatibility.md)，審核移植後的完整程式與參數。數量依 [09](../references/09-quantity-and-risk.md)換算。
+JavaScript依 [04](../references/04-strategy-guide.md)調整。Pine先讀 [08](../references/08-pine-compatibility.md)，審核移植後的完整程式與參數。數量依 [09](../references/09-quantity-and-risk.md)換算。下單張數與槓桿由策略決定，bridge 預設不限制；槓桿設定方式見 04「槓桿」。
 
 可從 [一分鐘鱷魚碎形範例](../examples/alligator-fractal/README.md)開始。這不是獲利推薦，是可檢查的訊號與執行範例；它不會強制產生交易，也不保證下一分鐘有訊號。
 
@@ -34,8 +35,8 @@ JavaScript依 [04](../references/04-strategy-guide.md)調整。Pine先讀 [08](.
 | 離線測試 | 指標、數量、成交/異常控制流程 | 交易所已成交 |
 | 唯讀連線 | 正確帳戶、報價、規格、持倉/掛單查詢 | 交易權限與送單可用 |
 | PAPER | 新K線更新、自然訊號、模擬開平、狀態恢復 | 已真實下單 |
-| 核准環境真實測試 | 訂單ID、全部成交、成交均價、持倉同步、平倉後無掛單 | 所有方向/策略/數量均已驗證 |
-| 正式部署 | 本人的帳戶核准、維運與故障處理、一段時間觀察 | 無風險或保證收益 |
+| 小量真實測試 | 訂單ID、全部成交、成交均價、持倉同步、平倉後無掛單 | 所有方向/策略/數量均已驗證 |
+| 正式部署 | 維運與故障處理、一段時間觀察 | 無風險或保證收益 |
 
 先測試網，正式前完成 [上線檢查](../references/05-go-live.md)。PAPER不會改變bridge所連環境；`AF_RUN_MODE=1`表示送真實訂單，但送到測試網還是正式環境，由伺服器`OBX_ENV`與所選憑證決定，不能只看實盤名稱。
 
@@ -45,7 +46,7 @@ JavaScript依 [04](../references/04-strategy-guide.md)調整。Pine先讀 [08](.
 
 - `SIGNAL` 是意圖，`PAPER_FILL` 是模擬；`LIVE_CONFIRMED` 表示策略已查單並核對成交與持倉，仍可再次唯讀對帳。
 - `REVERSE_SHORT` 是反向訊號名稱，不代表已持有空單。看 `from` / `target`：+1→0是平多，0→-1才是開空。
-- `AF_MAX_ROUND_TRIPS=1` 時平倉便結束，反手新倉不再開；正常持續模式是0，但需另行確認交易範圍。
+- `AF_MAX_ROUND_TRIPS=1` 時平倉便結束，反手新倉不再開；正常持續運行設為0。
 - `complete=true`、`net=0`、`closedTrades=1`、FMZ「已完成」才表示本次驗證結束。介面不同區塊可能暫未同步，重新整理並對照同一時間的日誌。
 - 不明送單結果保留journal，先唯讀查單、成交、持倉、掛單，不要清空狀態或重送。
 

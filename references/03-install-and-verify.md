@@ -75,7 +75,9 @@ read -rs OBX_SECRET && export OBX_SECRET   # 貼上 Secret Key 後按 Enter，�
 | `python3 check_testnet.py` | 五項 OK：時間差、BTC 報價、合約規格、簽名（查餘額）、持倉模式 |
 | `python3 obx_tool.py balance` | 看到資金帳戶與合約帳戶餘額 |
 | `python3 obx_tool.py transfer 1000` | 若合約帳戶為 0，從資金帳戶轉入測試用金額（保留部分在資金帳戶） |
-| `python3 smoke_trade.py` | 限價掛單、查單、撤單，以及超過上限被擋，全部 OK；不產生持倉 |
+| `python3 smoke_trade.py` | 限價掛單、查單、撤單，以及防呆限制生效，全部 OK；不產生持倉（此測試自帶一組小限制，與主機設定無關） |
+| `python3 obx_tool.py symbols` | 列出交易對；確認看得到要交易的交易對（斯巴達專屬交易對見 `04-strategy-guide.md`） |
+| `OBX_SYMBOL=BTCSPARTANS_USDT python3 check_testnet.py` | 若要交易專屬交易對，用它再檢查一次報價、規格與持倉模式 |
 | `python3 smoke_trade.py --fill` | 再加上市價開多 1 張、查持倉、市價平多，最後持倉為空 |
 
 `smoke_trade.py` 只能在測試網執行。

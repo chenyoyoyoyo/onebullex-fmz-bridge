@@ -9,7 +9,7 @@
   },
   {
     "name": "AF_SIZE_MODE",
-    "label": "張數模式：0=權益百分比；1=固定張數測試",
+    "label": "張數模式：0=權益百分比；1=固定張數",
     "value": 1,
     "type": "number",
     "min": 0,
@@ -17,11 +17,11 @@
   },
   {
     "name": "AF_FIXED_CONTRACTS",
-    "label": "固定測試張數",
+    "label": "固定張數",
     "value": 1,
     "type": "number",
     "min": 1,
-    "max": 100000
+    "max": 10000000
   },
   {
     "name": "AF_EQUITY_PCT",
@@ -32,12 +32,20 @@
     "max": 100
   },
   {
-    "name": "AF_APPROVED_CAP",
-    "label": "已核准且與bridge一致的單筆上限",
-    "value": 1,
+    "name": "AF_MAX_CONTRACTS",
+    "label": "單筆張數保護：0=不限制",
+    "value": 0,
     "type": "number",
-    "min": 1,
-    "max": 100000
+    "min": 0,
+    "max": 10000000
+  },
+  {
+    "name": "AF_LEVERAGE",
+    "label": "槓桿：0=沿用帳戶設定",
+    "value": 0,
+    "type": "number",
+    "min": 0,
+    "max": 200
   },
   {
     "name": "AF_MAX_ROUND_TRIPS",

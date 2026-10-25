@@ -23,7 +23,7 @@
 | 搜尋 | 問題 | 處理 |
 | --- | --- | --- |
 | `SetContractType(` | 託管者報錯 | 刪除 |
-| `SetMarginLevel(` | 託管者報錯 | 改用 `exchange.IO("api", "POST", "/v2/position/adjust-leverage", "symbol=...&leverage=N")`，不可超過 bridge 上限 |
+| `SetMarginLevel(` | 託管者報錯 | 改用 `exchange.IO("api", "POST", "/v2/position/adjust-leverage", "symbol=...&leverage=N")`，見 `04-strategy-guide.md`「槓桿」 |
 | `SetDirection(` | 被靜默忽略，方向會錯 | 刪除，改用淨部位邏輯（見第 2 步） |
 | `GetPosition(` / `GetPositions(` | 託管者報錯 | 改用 `netPosition()` |
 | `PD_LONG` / `PD_SHORT` / `.Type` / `.Amount`（持倉物件） | 持倉資料來源改變 | 改用淨部位的正負號 |
@@ -47,7 +47,7 @@
 
 - **對沖邏輯**：策略同時持有多單和空單（例如雙向網格、鎖倉）。OneBullEx 帳戶為單向持倉，無法照原意運作。說明限制，請使用者決定改成單一淨部位或放棄。
 - **數量單位**：原策略的數量若是依其他交易所的合約面值或幣數設定，在 OneBullEx 會差很多倍（OneBullEx BTC 每張 0.0001 BTC，以 `/v2/public/symbol/detail` 的 `contractSize` 為準）。列出換算結果，請使用者確認。
-- **交易對**：bridge 預設只允許 BTC、ETH 合約。策略若交易其他幣種，需先取得 OneBullEx 同意。
+- **交易對**：斯巴達的 BTC、ETH、黃金策略建議改用專屬交易對 `BTCSPARTANS_USDT`、`ETHSPARTANS_USDT`、`XAUSPARTANS_USDT`（風險限額較高）。改交易對時面值可能不同，張數要用 `obx_tool.py spec` 查到的面值重新換算，請使用者確認。
 - 任何你不確定原意的程式邏輯。
 
 ## 4. 儲存：另存新策略，不覆蓋原策略

@@ -62,11 +62,13 @@ install_adapter() {
 # 連線環境：test（測試網）或 prod（正式環境）
 OBX_ENV=test
 OBX_PORT=6666
-# 允許交易的合約，逗號分隔；all 表示不限制
-OBX_ALLOWED=btc_usdt,eth_usdt
-# 單筆最大張數、最大槓桿、每秒最多下單筆數（0 表示不限制）
-OBX_MAX_QTY=100
-OBX_MAX_LEV=20
+# 以下都是選用的自我保護，預設不限制交易對、張數與槓桿。
+# 只允許某些合約時填清單（逗號分隔），例如 btcspartans_usdt,ethspartans_usdt；all 表示不限制
+OBX_ALLOWED=all
+# 單筆最大張數、最大槓桿（0 表示不限制）；想防止策略寫錯下出過大的單，可自行設定
+OBX_MAX_QTY=0
+OBX_MAX_LEV=0
+# 每秒最多下單筆數，防止策略迴圈失控連續送單（0 表示不限制）
 OBX_MAX_RATE=5
 # 開倉預設槓桿（會套用到合約設定）；0 表示沿用帳戶目前設定
 OBX_DEFAULT_LEV=0

@@ -8,11 +8,15 @@ function fixture(opt={}){
  const rows=Array.from({length:100},(_,i)=>({Time:T+i*M,Open:80000,Close:80000,High:80001,Low:79999}));
  rows[95].High=80020;rows[96].Low=79980;
  const sends=[],logs=[],events=[];let failReads=0;
- const positions=()=>net?[{symbol:'btc_usdt',positionSize:String(Math.abs(net)),positionSide:net>0?'LONG':'SHORT',entryPrice:String(avg),contractSize:'0.0001'}]:[];
- const ex={GetCurrency:()=> 'BTC_USDT',GetLabel:()=> 'OneBullEx-Spartans',GetOrders:()=>opt.openOrders||[],
+ const cur=opt.currency||'BTC_USDT',sym=opt.obSymbol||'btc_usdt',cs=opt.contractSize||'0.0001',posts=[];
+ const positions=()=>net?[{symbol:sym,positionSize:String(Math.abs(net)),positionSide:net>0?'LONG':'SHORT',entryPrice:String(avg),contractSize:cs}]:[];
+ const ex={GetCurrency:()=> cur,GetLabel:()=> 'OneBullEx-Spartans',GetOrders:()=>opt.openOrders||[],
   GetRecords:p=>{a.equal(p,60);return rows;},GetTicker:()=>({Last:price,Time:clock-(opt.stale?30000:0)}),
-  IO:(api,verb,path)=>{a.equal(api,'api');a.equal(verb,'GET');
-   if(path.endsWith('symbol/detail'))return {data:{symbol:'btc_usdt',contractSize:'0.0001',quantityPrecision:0,minQty:'1',minStepPrice:'.1'}};
+  IO:(api,verb,path,q)=>{a.equal(api,'api');
+   if(verb==='POST'){a.equal(path,'/v2/position/adjust-leverage');posts.push(path+' '+q);return {data:Number(/leverage=(\d+)/.exec(q)[1])};}
+   a.equal(verb,'GET');
+   if(path.endsWith('symbol/detail'))return {data:{symbol:sym,contractSize:cs,quantityPrecision:0,minQty:'1',minStepPrice:'.1'}};
+   if(path.endsWith('symbol-mark-price'))a.equal(q,'symbol='+sym);
    if(path.endsWith('position/list')){if(failReads-->0)throw Error('MOCK_TIMEOUT');return {data:positions()};}
    if(path.endsWith('balance/list'))return {data:[{coin:'USDT',walletBalance:String(wallet)}]};
    if(path.endsWith('symbol-mark-price'))return {data:{p:String(price)}};
@@ -31,7 +35,7 @@ function fixture(opt={}){
  ex.Buy=(p,q)=>send('Buy',p,q);ex.Sell=(p,q)=>send('Sell',p,q);
  const env={exchange:ex,now:()=>clock,sleep:ms=>{clock+=ms;},loadState:()=>saved,saveState:s=>{saved=structuredClone(s);},loadJournal:()=>journal,saveJournal:j=>{journal=j;},log:(...x)=>logs.push(x),status:()=>{}};
  const config={live:!!opt.live,maxRoundTrips:opt.rounds??1,...opt.config};let rt=make(env,config);
- const f={ex,env,config,sends,logs,events,rows,step:()=>rt.step(),saved:()=>structuredClone(saved),journal:()=>journal,net:()=>net,
+ const f={ex,env,config,sends,posts,logs,events,rows,step:()=>rt.step(),saved:()=>structuredClone(saved),journal:()=>journal,net:()=>net,
   now:()=>clock,setPrice:p=>{price=p;},advance:ms=>{clock+=ms;},setWallet:v=>{wallet=v;},setNet:v=>{net=v;avg=price;},failReads:n=>{failReads=n;},
   mutate:fn=>fn(saved),restart:()=>{rt=make(env,config);return rt;},
   bar:(close,extra={})=>{const time=rows.at(-1).Time+M;rows.push({Time:time,Open:close,Close:close,High:close+1,Low:close-1,...extra});price=close;
@@ -63,8 +67,17 @@ test('original 10% of actual wallet respects integer contracts: below one is ski
  const f=fixture({live:true,config:{sizeMode:0}});f.step();f.bar(80030);a.equal(f.saved().lastBlocked.reason,'BELOW_ONE_CONTRACT');a.equal(f.sends.length,0);
  const g=fixture({live:true,config:{sizeMode:0}});g.setWallet(100);g.step();g.bar(80030);a.equal(g.net(),1);
 });
-test('percentage size above approved cap is blocked without clipping or splitting',()=>{
- const f=fixture({live:true,config:{sizeMode:0}});f.setWallet(1000);f.step();f.bar(80030);a.equal(f.saved().lastBlocked.reason,'ABOVE_APPROVED_CAP');a.equal(f.sends.length,0);
+test('percentage size above an optional single-order limit is blocked without clipping or splitting',()=>{
+ const f=fixture({live:true,config:{sizeMode:0,cap:1}});f.setWallet(1000);f.step();f.bar(80030);a.equal(f.saved().lastBlocked.reason,'ABOVE_SINGLE_ORDER_LIMIT');a.equal(f.sends.length,0);
+});
+test('default has no single-order limit: percentage sizing sends the full computed size',()=>{
+ const f=fixture({live:true,config:{sizeMode:0}});f.setWallet(1000);f.step();f.bar(80030);a.equal(f.net(),12);a.deepEqual(f.sends,[{side:'Buy',q:12}]);
+});
+test('Spartans pair: reads its own contract size, mark price and position symbol; sets leverage when live',()=>{
+ const f=fixture({live:true,currency:'BTCSPARTANS_USDT',obSymbol:'btcspartans_usdt',contractSize:'0.001',config:{leverage:5,fixedContracts:2}});
+ a.deepEqual(f.posts,['/v2/position/adjust-leverage symbol=btcspartans_usdt&leverage=5']);
+ f.step();f.bar(80030);a.equal(f.net(),2);f.bar(79995);a.equal(f.net(),0);a.deepEqual(f.sends,[{side:'Buy',q:2},{side:'Sell',q:2}]);
+ const g=fixture({currency:'BTCSPARTANS_USDT',obSymbol:'btcspartans_usdt',contractSize:'0.001',config:{leverage:5}});a.deepEqual(g.posts,[]);
 });
 test('blocked reverse size still executes independent teeth exit and remains flat',()=>{
  const f=fixture({live:true,rounds:0,config:{sizeMode:0}});f.setWallet(100);f.step();f.bar(80030);a.equal(f.net(),1);
@@ -113,7 +126,7 @@ test('public account label is configurable and exact-match; mismatch never sends
  context.AF_ACCOUNT_LABEL='My-Spartans-Account';
  a.throws(()=>context.main(),/END_TEST_LOOP/);a.equal(f.sends.length,0);
 });
-test('approved larger fixed size is supported without a hardcoded one-contract ceiling',()=>{
- const f=fixture({live:true,config:{fixedContracts:3,cap:3}});f.step();f.bar(80030);a.equal(f.net(),3);f.bar(79995);
+test('larger fixed size is supported without a hardcoded one-contract ceiling',()=>{
+ const f=fixture({live:true,config:{fixedContracts:3}});f.step();f.bar(80030);a.equal(f.net(),3);f.bar(79995);
  a.equal(f.net(),0);a.deepEqual(f.sends,[{side:'Buy',q:3},{side:'Sell',q:3}]);
 });

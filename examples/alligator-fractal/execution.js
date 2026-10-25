@@ -7,12 +7,18 @@
 function createSpartansExecution(env, options) {
     "use strict";
     var ex = env.exchange;
-    var cfg = Object.assign({liveEnabled: false, maxOrderContracts: 1,
-        timeoutMs: 15000, pollMs: 1000, symbol: "BTC_USDT"}, options || {});
-    var obSymbol = cfg.symbol.toLowerCase();
+    // maxOrderContracts: optional per-order guard chosen by the user; 0 = no limit.
+    var cfg = Object.assign({liveEnabled: false, maxOrderContracts: 0,
+        timeoutMs: 15000, pollMs: 1000, symbol: null}, options || {});
+    if (!cfg.symbol) cfg.symbol = ex.GetCurrency();   // e.g. BTC_USDT or BTCSPARTANS_USDT
+    var obSymbol = String(cfg.symbol).toLowerCase();
     var busy = false;
-    if (!Number.isSafeInteger(cfg.maxOrderContracts) || cfg.maxOrderContracts < 1)
-        throw new Error("Invalid approved order cap");
+    if (!Number.isSafeInteger(cfg.maxOrderContracts) || cfg.maxOrderContracts < 0)
+        throw new Error("Invalid single-order limit");
+    // Exchange names may differ only by underscores (btcspartans_usdt vs btcspartansusdt).
+    function sameSymbol(a, b) {
+        return String(a).replace(/_/g, "").toLowerCase() === String(b).replace(/_/g, "").toLowerCase();
+    }
     function fail(message) { throw new Error(message); }
     function number(value, name) {
         if (value === null || value === undefined || value === "" ||
@@ -38,7 +44,7 @@ function createSpartansExecution(env, options) {
         if (!Array.isArray(rows)) fail("Positions must be an array");
         var active = [];
         rows.forEach(function (p) {
-            if (p.symbol !== obSymbol) fail("Unexpected position symbol");
+            if (!sameSymbol(p.symbol, obSymbol)) fail("Unexpected position symbol");
             var size = integer(p.positionSize, "positionSize");
             if (size < 0) fail("Negative position size");
             if (size) {
@@ -55,10 +61,12 @@ function createSpartansExecution(env, options) {
     function spec() {
         var s = data("/v2/public/symbol/detail", "symbol=" + obSymbol);
         var size = number(s.contractSize, "contractSize");
-        if (s.symbol !== obSymbol || size !== 0.0001 ||
+        var minQty = number(s.minQty, "minQty");
+        // Contract size differs per symbol (read it, never assume BTC_USDT's 0.0001).
+        if (!sameSymbol(s.symbol, obSymbol) || !(size > 0) ||
             number(s.quantityPrecision, "quantityPrecision") !== 0 ||
-            number(s.minQty, "minQty") !== 1) fail("Unexpected BTC contract specification");
-        return {contractSize: size, priceStep: number(s.minStepPrice, "minStepPrice")};
+            !Number.isSafeInteger(minQty) || minQty < 1) fail("Unexpected contract specification");
+        return {contractSize: size, minQty: minQty, priceStep: number(s.minStepPrice, "minStepPrice")};
     }
     // Explicit equity argument: caller must supply audited futures equity, not funding
     // balance or Pine strategy.equity, whose live semantics are not yet validated.
@@ -73,7 +81,7 @@ function createSpartansExecution(env, options) {
         var unit = spec().contractSize;
         var stepContracts = Math.round(stepBTC / unit);
         if (stepContracts < 1 || Math.abs(stepContracts * unit - stepBTC) > 1e-12)
-            fail("BTC size step must be a whole number of contracts");
+            fail("Size step must be a whole number of contracts");
         var distance = Math.abs(entry - stop);
         var rawBTC = Math.min(riskUSDT / distance, equity * exposureMultiple / entry);
         var lots = Math.floor(rawBTC / stepBTC + 1e-10);
@@ -85,7 +93,7 @@ function createSpartansExecution(env, options) {
         return {contracts: contracts, btc: contracts * unit,
             estimatedStopLossUSDT: contracts * unit * distance,
             notionalUSDT: contracts * unit * entry,
-            exceedsApprovedSingleOrder: contracts > cfg.maxOrderContracts,
+            exceedsSingleOrderLimit: cfg.maxOrderContracts > 0 && contracts > cfg.maxOrderContracts,
             includesFeesAndSlippage: false};
     }
     function pendingOrders() {
@@ -95,8 +103,9 @@ function createSpartansExecution(env, options) {
     }
     function checkQuantity(q) {
         integer(q, "order quantity");
-        if (q < 1 || q > cfg.maxOrderContracts)
-            fail("Exceeds approved single-order limit; no order splitting allowed");
+        if (q < 1) fail("Quantity below one contract");
+        if (cfg.maxOrderContracts > 0 && q > cfg.maxOrderContracts)
+            fail("Exceeds the single-order limit set in parameters; no order splitting");
     }
     function plan(target) {
         target = integer(target, "target");
@@ -119,6 +128,15 @@ function createSpartansExecution(env, options) {
         // Preflight ALL legs, including reversal, before sending any leg.
         actions.forEach(function (a) { checkQuantity(a.qty); });
         return actions;
+    }
+    // Optional: set leverage through the bridge (FMZ SetMarginLevel is not forwarded).
+    function setLeverage(n) {
+        n = integer(n, "leverage");
+        if (n < 1) fail("Leverage must be at least 1");
+        var r = ex.IO("api", "POST", "/v2/position/adjust-leverage", "symbol=" + obSymbol + "&leverage=" + n);
+        if (typeof r === "string") r = JSON.parse(r);
+        if (!r || Number(r.data) !== n) fail("Leverage not confirmed");
+        return n;
     }
     function moveTo(target) {
         if (busy) fail("Execution already in progress");
@@ -171,7 +189,7 @@ function createSpartansExecution(env, options) {
         } finally { busy = false; }
     }
     return {position: position, spec: spec, sizeForRisk: sizeForRisk,
-        plan: plan, moveTo: moveTo};
+        plan: plan, moveTo: moveTo, setLeverage: setLeverage, symbol: obSymbol};
 }
 if (typeof module !== "undefined" && module.exports)
     module.exports = {createSpartansExecution: createSpartansExecution};

@@ -13,7 +13,8 @@
 - **第一次使用**：[公開交接指南](docs/HANDOVER.md)，依序完成主機、bridge、託管者、測試網與正式驗收。
 - **已有 FMZ JavaScript 策略**：[策略介面](references/04-strategy-guide.md)與[轉換流程](references/07-convert-strategy.md)。
 - **已有 Pine 策略**：先讀 [Pine 相容性與轉換](references/08-pine-compatibility.md)。本次成功路徑是 Pine 邏輯移植至 JavaScript；**不是原生 Pine 直接透過本 bridge 下單成功**。
-- **需要可執行範例**：[一分鐘鱷魚與碎形突破](examples/alligator-fractal/README.md)，附完整 FMZ 程式、原始 Pine、8 個參數、建置程式與離線測試；預設 PAPER 不下單。
+- **需要可執行範例**：[一分鐘鱷魚與碎形突破](examples/alligator-fractal/README.md)，附完整 FMZ 程式、原始 Pine、9 個參數（含張數、槓桿）、建置程式與離線測試；預設 PAPER 不下單。
+- **斯巴達專屬交易對與槓桿**：`BTCSPARTANS_USDT`、`ETHSPARTANS_USDT`、`XAUSPARTANS_USDT` 可直接使用，見 [策略介面](references/04-strategy-guide.md)的「斯巴達專屬交易對」與「槓桿」。
 - **張數怎麼算**：[數量、名目金額、保證金與風險](references/09-quantity-and-risk.md)。`Buy/Sell` 的 amount 是整數張，不是 BTC，也不是 USDT。
 
 ## 交給 AI 助手
@@ -32,11 +33,11 @@ cd onebullex-fmz-bridge
 
 ## 前提與邊界
 
-- 自己的 FMZ 帳號、OneBullEx 核發的 bot API 憑證、可交易的合約帳戶資金及核准範圍。
+- 自己的 FMZ 帳號、OneBullEx 核發的 bot API 憑證、合約帳戶裡可交易的資金。
 - 自架 Linux 主機；FMZ 託管者與 bridge 在同一台。bridge 僅監聽 `127.0.0.1:6666`，不要對公網開放該埠。
 - 先測試網；PAPER 只驗證真實行情與策略邏輯，**不會測試交易所下單鏈路**。正式小量測試需額外確認並對帳。
 - 使用單向淨部位。反手分成「平舊倉 → 成交及空倉確認 → 開新倉」，不能用一張超過現有持倉的反向單代替。
-- 1 張是範例的初始驗證設定，並非平台永久限制。正常張數由策略、合約規格、可用保證金及帳戶核准上限共同決定；不拆單繞過限制。
+- **下單張數與槓桿由你的策略決定，bridge 預設不限制。** 實際上限取決於可用保證金與交易所規則（各合約的持倉上限、API 限頻）。範例的 1 張只是初次驗證設定。想替自己加防呆，見 [09](references/09-quantity-and-risk.md)。
 - 不明送單結果不得自動重送。程序停止也不代表持倉自動平掉；此範例的出場依賴主機持續運作。
 
 ## 目錄
@@ -68,4 +69,4 @@ python3 scripts/package_public.py
 
 橋接工具與文件採 [MIT](LICENSE)。`examples/alligator-fractal/` 的 Pine 衍生範例採 [MPL-2.0](LICENSES/MPL-2.0.txt)，詳見 [NOTICE.md](NOTICE.md)。未附入 FMZ 託管者二進位或官方 Pine 核心原始碼，請從官方取得。
 
-本工具包提供技術串接，不構成投資建議。每位使用者應以自己的帳戶、憑證及核准範圍驗證，斯巴達規則以 OneBullEx 官方為準。
+本工具包提供技術串接，不構成投資建議。每位使用者應以自己的帳戶與憑證驗證，斯巴達規則以 OneBullEx 官方為準。
