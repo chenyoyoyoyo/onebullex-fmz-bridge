@@ -1,0 +1,37 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@version=5
+strategy("鱷魚與碎形突破策略 (Alligator + Fractal)", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+smma(src, length) =>
+    var float smma_val = na
+    smma_val := na(smma_val[1]) ? ta.sma(src, length) : (smma_val[1] * (length - 1) + src) / length
+    smma_val
+jaw = smma(hl2, 13)
+teeth = smma(hl2, 8)
+lips = smma(hl2, 5)
+plot(jaw, offset=8, color=color.blue, title="Jaw (下巴-藍)")
+plot(teeth, offset=5, color=color.red, title="Teeth (牙齒-紅)")
+plot(lips, offset=3, color=color.green, title="Lips (嘴唇-綠)")
+current_jaw = jaw[8]
+current_teeth = teeth[5]
+n = 2
+isHighFractal = high[n+2] < high[n] and high[n+1] < high[n] and high[n-1] < high[n] and high[n-2] < high[n]
+isLowFractal = low[n+2] > low[n] and low[n+1] > low[n] and low[n-1] > low[n] and low[n-2] > low[n]
+var float latestHighFractal = na
+var float latestLowFractal = na
+if isHighFractal
+    latestHighFractal := high[n]
+if isLowFractal
+    latestLowFractal := low[n]
+plotshape(isHighFractal, style=shape.triangledown, location=location.abovebar, offset=-2, color=color.red, size=size.small, title="Resistance Fractal")
+plotshape(isLowFractal, style=shape.triangleup, location=location.belowbar, offset=-2, color=color.green, size=size.small, title="Support Fractal")
+longCondition = ta.crossover(close, latestHighFractal) and close > current_teeth
+shortCondition = ta.crossunder(close, latestLowFractal) and close < current_teeth
+if longCondition
+    strategy.entry("Long", strategy.long)
+if shortCondition
+    strategy.entry("Short", strategy.short)
+if strategy.position_size > 0 and ta.crossunder(close, current_teeth)
+    strategy.close("Long", comment="Exit Long")
+if strategy.position_size < 0 and ta.crossover(close, current_teeth)
+    strategy.close("Short", comment="Exit Short")

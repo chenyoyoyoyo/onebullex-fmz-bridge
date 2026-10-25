@@ -2,6 +2,10 @@
 
 給 AI 助手的轉換流程。新版 FMZ 託管者的通用協議只轉送現貨功能（見 `04-strategy-guide.md`），所以使用合約函數的策略必須轉換才能接 OneBullEx。
 
+## 先辨識語言與執行層
+
+本節表格主要處理FMZ JavaScript合約寫法。若來源是Pine，先讀 [08](08-pine-compatibility.md)，完整移植訊號、狀態與下單；不能僅刪SetDirection或更改精度。所有策略的數量先讀 [09](09-quantity-and-risk.md)。
+
 ## 0. 取得策略程式碼（擇一）
 
 | 方式 | 說明 |
@@ -32,8 +36,8 @@
 
 ## 2. 轉換：改成「目標淨部位」
 
-1. 在策略最上方加入共用函數（`04-strategy-guide.md` 的 `netPosition`、`waitOrder`、`moveTo`）。交易對用 `exchange.GetCurrency().toLowerCase()` 取得，不要寫死。
-2. 把原本的開平倉邏輯改寫成「這一刻要持有多少淨部位」：多 N 張 = `N`、空 N 張 = `-N`、空手 = `0`，再呼叫 `moveTo(target)`。
+1. 在策略最上方加入04連結的 `execution.js`，用 `createSpartansExecution` 建立執行器並保存訂單journal；策略另存訊號意圖。交易對用 `exchange.GetCurrency().toLowerCase()` 取得，不要寫死。
+2. 把原本的開平倉邏輯改寫成「這一刻要持有多少淨部位」：多 N 張 = `N`、空 N 張 = `-N`、空手 = `0`，再呼叫 `execution.moveTo(target)`。
    - 原本：有空單就 `closesell` 平空，沒多單就 `buy` 開多 QTY → 改成 `moveTo(QTY)`
    - 原本：有多單就 `closebuy` 平多，沒空單就 `sell` 開空 QTY → 改成 `moveTo(-QTY)`
    - 原本：平掉所有持倉 → 改成 `moveTo(0)`
@@ -52,57 +56,8 @@
 - 存成新策略，名稱加上後綴，例如 `原名-OneBullEx版`。原策略保持不變。
 - 儲存後重新讀取一次，確認內容完整，且不再含有 `SetContractType(`、`SetDirection(`、`SetMarginLevel(`、`GetPositions(`（註解除外）。
 
-## 5. 驗證：在測試網跑核心函數
+## 5. 驗證與回報
 
-在 FMZ 調試工具（託管者選裝了 bridge 的機器、交易所選測試網設定）執行下列腳本，把轉換後的共用函數貼在 `main` 之前。**這會在測試網實際下單，必須由使用者確認或親手按執行。**
+以 [完整範例](../examples/alligator-fractal/README.md) 與 [交接指南](../docs/HANDOVER.md) 的分階段流程驗收。先離線與PAPER，再經同意於測試網驗證目標部位0→+1→0、0→-1→0，反手則每一腿都要確認成交/淨倉歸零；未驗證的方向如實列出，不挪用其他案例的成功。
 
-```javascript
-function main() {
-    Log("設定槓桿", exchange.IO("api", "POST", "/v2/position/adjust-leverage", "symbol=" + exchange.GetCurrency().toLowerCase() + "&leverage=5"))
-    Log("開始淨部位", netPosition())
-    moveTo(1);  Sleep(1500); Log("目標 +1 → ", netPosition())
-    moveTo(-1); Sleep(1500); Log("目標 -1（反手）→ ", netPosition())
-    moveTo(0);  Sleep(1500); Log("目標 0（平倉）→ ", netPosition())
-}
-```
-
-預期淨部位依序為 `0 → 1 → -1 → 0`。全部正確後，才建議使用者以轉換後的策略在**測試網**建立實盤觀察一段時間。不要替使用者啟動正式環境的實盤。
-
-## 6. 回報
-
-最後給使用者一份簡短摘要：
-
-- 改了哪些地方（第 1 步的表格）
-- 行為上的差異（單向持倉、不自動反手、數量單位）
-- 驗證結果
-- 尚未驗證的部分（例如未在測試網跑過的 K 線週期）
-
-## 範例
-
-轉換前（合約寫法，節錄）：
-
-```javascript
-exchange.SetContractType("swap")
-exchange.SetMarginLevel(5)
-var pos = exchange.GetPositions() || []
-// ...計算 longAmt、shortAmt...
-if (up) {
-    if (shortAmt > 0) { exchange.SetDirection("closesell"); exchange.Buy(-1, shortAmt) }
-    if (longAmt == 0) { exchange.SetDirection("buy"); exchange.Buy(-1, QTY) }
-} else {
-    if (longAmt > 0) { exchange.SetDirection("closebuy"); exchange.Sell(-1, longAmt) }
-    if (shortAmt == 0) { exchange.SetDirection("sell"); exchange.Sell(-1, QTY) }
-}
-```
-
-轉換後（加上共用函數後）：
-
-```javascript
-exchange.IO("api", "POST", "/v2/position/adjust-leverage", "symbol=" + obSymbol() + "&leverage=" + LEVERAGE)
-// ...訊號計算不變...
-moveTo(up ? QTY : -QTY)
-var net = netPosition()
-LogStatus("多 " + Math.max(net, 0) + " 張，空 " + Math.max(-net, 0) + " 張")
-```
-
-此範例已在 OneBullEx 測試網經 FMZ 實測，淨部位依序為 0 → 1 → -1 → 0。
+每個真實測試先說明環境、帳戶與張數並取得同意；正式實盤由使用者親自啟動。回報改動、參數差異、數量算法、驗證證據及未驗證範圍。PAPER或回測成功不能代替交易所成交驗收。

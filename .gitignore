@@ -1,6 +1,26 @@
+# Public repository root allowlist: local deployment/evidence stays untracked.
+/*
+!/.gitignore
+!/README.md
+!/SKILL.md
+!/llms.txt
+!/LICENSE
+!/NOTICE.md
+!/LICENSES/
+!/bridge/
+!/references/
+!/docs/
+!/examples/
+!/scripts/
+!/.github/
+
 __pycache__/
 *.pyc
 .DS_Store
 *.pem
+*.key
 .env
+.env.*
 robot.conf
+*.log
+node_modules/

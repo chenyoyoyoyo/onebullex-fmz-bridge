@@ -1,0 +1,62 @@
+[
+  {
+    "name": "AF_RUN_MODE",
+    "label": "執行模式：0=PAPER；1=LIVE",
+    "value": 0,
+    "type": "number",
+    "min": 0,
+    "max": 1
+  },
+  {
+    "name": "AF_SIZE_MODE",
+    "label": "張數模式：0=權益百分比；1=固定張數測試",
+    "value": 1,
+    "type": "number",
+    "min": 0,
+    "max": 1
+  },
+  {
+    "name": "AF_FIXED_CONTRACTS",
+    "label": "固定測試張數",
+    "value": 1,
+    "type": "number",
+    "min": 1,
+    "max": 100000
+  },
+  {
+    "name": "AF_EQUITY_PCT",
+    "label": "原策略下單名目金額占權益百分比",
+    "value": 10,
+    "type": "number",
+    "min": 0.01,
+    "max": 100
+  },
+  {
+    "name": "AF_APPROVED_CAP",
+    "label": "已核准且與bridge一致的單筆上限",
+    "value": 1,
+    "type": "number",
+    "min": 1,
+    "max": 100000
+  },
+  {
+    "name": "AF_MAX_ROUND_TRIPS",
+    "label": "完成幾次開平倉後停止：0=持續運行",
+    "value": 1,
+    "type": "number",
+    "min": 0,
+    "max": 100000
+  },
+  {
+    "name": "AF_SHOW_LINES",
+    "label": "繪製鱷魚與碎形",
+    "value": true,
+    "type": "boolean"
+  },
+  {
+    "name": "AF_ACCOUNT_LABEL",
+    "label": "預期的FMZ交易所設定名稱",
+    "value": "OneBullEx-Spartans",
+    "type": "string"
+  }
+]

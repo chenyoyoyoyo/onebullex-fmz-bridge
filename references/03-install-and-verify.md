@@ -56,7 +56,7 @@ sudo bash install_server.sh adapter
 sudo bash install_server.sh status
 ```
 
-把「本機對外 IP」提供給 OneBullEx 聯絡窗口，綁定 API key 白名單。綁定前呼叫私有 API 會出現 `not-at-white-list`。
+把「本機對外 IP」提供給 OneBullEx 聯絡窗口，綁定 API key 白名單。若私有API回覆 `not-at-white-list`，代表該憑證要求綁定。即使查詢可用，也應向OneBullEx確認該帳戶正式使用的白名單要求，不以公開行情成功代替權限確認。
 
 ## 5. 測試網驗證
 
@@ -64,7 +64,7 @@ sudo bash install_server.sh status
 
 ```bash
 cd /opt/onebullex_fmz
-export OBX_API_KEY=<測試網 Access Key>
+read -rs OBX_API_KEY && export OBX_API_KEY  # 本人輸入Access Key，避免寫進shell歷史
 read -rs OBX_SECRET && export OBX_SECRET   # 貼上 Secret Key 後按 Enter，不會顯示
 ```
 
@@ -99,35 +99,26 @@ function main() {
 }
 ```
 
-再下一張不會成交的限價單並撤掉（不產生持倉）：
+以下只在獲准測試網執行：遠離現價的限價單仍可能成交，不保證沒有持倉。送單前需說明環境與1張數量並取得同意；撤單後核對訂單及實際持倉：
 
 ```javascript
 function main() {
     exchange.SetCurrency("BTC_USDT")
     var t = exchange.GetTicker()
-    var id = exchange.Buy(_N(t.Last * 0.9, 1), 1)   // 低於市價 10%，不會成交
+    var id = exchange.Buy(_N(t.Last * 0.9, 1), 1)   // 低於當前價10%，仍可能成交
+    if (!id) throw Error("送單結果不明：停止並對帳，不重送")
     Sleep(1500)
     Log("查單", exchange.GetOrder(id))
-    Log("撤單", exchange.CancelOrder(id))
+    Log("撤單回應", exchange.CancelOrder(id))
+    Sleep(1500)
+    Log("撤單後訂單", exchange.GetOrder(id))
+    Log("撤單後持倉", exchange.IO("api", "GET", "/v2/position/list", "symbol=btc_usdt"))
 }
 ```
 
-最後用市價開平 1 張，確認淨部位模式（會實際成交 1 張，測試網）：
+市價開平與反手驗證使用 [04的成交確認模組](04-strategy-guide.md) 或 [完整範例](../examples/alligator-fractal/README.md)，不要固定Sleep兩秒就假設成交。確認每一腿全部成交及持倉同步後才送下一腿。未決送單不重送；正式實盤由本人啟動。
 
-```javascript
-function main() {
-    exchange.SetCurrency("BTC_USDT")
-    var pos = function () { return exchange.IO("api", "GET", "/v2/position/list", "symbol=btc_usdt") }
-    var id1 = exchange.Buy(-1, 1)          // 沒有空單 → 開多 1 張
-    Sleep(2000)
-    Log("買單", exchange.GetOrder(id1), "持倉", pos())
-    var id2 = exchange.Sell(-1, 1)         // 有多單 → 平多 1 張
-    Sleep(2000)
-    Log("賣單", exchange.GetOrder(id2), "持倉（應為空）", pos())
-}
-```
-
-`SetContractType`、`SetDirection`、`SetMarginLevel`、`GetPositions` 在通用協議下不可用，策略寫法見 `04-strategy-guide.md`。
+建立FMZ執行個體時，選擇自己的私有託管者與交易所後按「＋」，核對已加入的平台標籤。範例先用PAPER；LIVE只代表送真實訂單，目標環境由bridge的OBX_ENV與憑證決定。
 
 ## 7. 日常維運
 

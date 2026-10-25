@@ -31,11 +31,11 @@ OneBullEx Open API V2（斯巴達機器人帳戶）
 
 ## 已知限制（請先確認策略適用）
 
-1. **只支援永續合約**：`SetContractType("swap")`。
+1. **只支援永續合約**：策略不呼叫 `SetContractType`；使用已核准的永續合約與BTC_USDT形式的交易對。
 2. **單向持倉**：測試帳戶為單向持倉（多空互相抵銷）。持有多單時「開空」會先抵銷多單，而不是同時持有一多一空。**同時持有多空的對沖型策略不適用**；趨勢、網格等單一方向策略可正常使用。
 3. **數量以「張」為單位且必須是整數**：例如 BTC 每張 0.0001 BTC，最少 1 張。策略需把幣數換算成張數。
 4. **下單是非同步的**：`Buy`/`Sell` 回傳訂單 ID 不代表已成交，需用 `GetOrder` 確認，剛下的單約 1 秒後查得到。
-5. **安全限制**：預設只允許 BTC、ETH 合約，單筆最多 100 張、槓桿最多 20 倍、每秒最多 5 筆。這是與 OneBullEx 約定的範圍，調整需先取得 OneBullEx 同意。
+5. **安全限制**：預設只允許 BTC、ETH 合約，單筆最多 100 張、槓桿最多 20 倍、每秒最多 5 筆。這些是軟體預設，不等於新帳戶已獲核准；部署時依OneBullEx核准範圍設定，調整需先取得同意。
 6. **策略要用現貨寫法**：新版 FMZ 託管者的通用協議不轉送 `SetContractType`、`SetDirection`、`SetMarginLevel`、`GetPositions`。bridge 以淨部位模式處理 `Buy`／`Sell`（有反向持倉就平倉，沒有就開倉），持倉與槓桿改用 `exchange.IO`。現有的合約寫法策略需要修改，見 `04-strategy-guide.md`。
 7. **exchange.IO 直通只開放查詢與調整槓桿**，下單一律走 `Buy`／`Sell`。
 
@@ -45,3 +45,5 @@ OneBullEx Open API V2（斯巴達機器人帳戶）
 - 需轉到**合約帳戶（Futures）**才能當保證金下單：`python3 obx_tool.py transfer <金額>`。
 - 贖回從資金帳戶支付，所以**資金帳戶要保留餘額**，不要全部轉走。
 - 詳細規則見 https://github.com/Onebullex-dev/spartan-strategy-partner-skill
+
+Pine策略先讀 [08](08-pine-compatibility.md)；張數、權益比例與止損風險換算見 [09](09-quantity-and-risk.md)。

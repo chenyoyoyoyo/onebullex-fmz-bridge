@@ -27,3 +27,12 @@
 - 斯巴達策略方指南: https://github.com/Onebullex-dev/spartan-strategy-partner-skill
 - OneBullEx API 文件: https://doc.onebullex.com
 - FMZ 通用協議: https://www.fmz.com/user-guide/platform-basics/exchange/general-protocol
+
+## Pine、數量與公開交接
+- references/08-pine-compatibility.md: 原生Pine觀察、JS移植與成交驗收
+- references/09-quantity-and-risk.md: 張數/幣數/名目金額/風險換算
+- docs/HANDOVER.md: 所有FMZ使用者的公開交接指南
+- docs/VALIDATION.md: 匿名驗證範圍與限制
+- examples/alligator-fractal/README.md: 完整Pine→JS範例與8個參數
+- scripts/package_public.py: 公開ZIP封裝
+- NOTICE.md: MIT與MPL-2.0授權範圍

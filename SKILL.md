@@ -26,7 +26,12 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 | `references/04-strategy-guide.md` | FMZ 函數對應、策略要怎麼改、範例程式 |
 | `references/05-go-live.md` | 切換正式環境的檢查清單 |
 | `references/06-troubleshooting.md` | 錯誤訊息對照與處理 |
-| `references/07-convert-strategy.md` | 把合約寫法的 FMZ 策略轉成可用寫法：取得程式碼、掃描、轉換、另存、測試網驗證 |
+| `references/07-convert-strategy.md` | 策略轉換：語言分流、掃描、另存與驗證 |
+| `references/08-pine-compatibility.md` | Pine 現貨執行分支的數量/持倉問題、JS移植檢查表 |
+| `references/09-quantity-and-risk.md` | 幣數/張數/名目金額/保證金/風險換算、上限核對 |
+| `docs/HANDOVER.md` | 面向所有使用者的部署與驗收交接 |
+| `docs/VALIDATION.md` | 匿名驗證範圍；不得把未驗證項目當成功 |
+| `examples/alligator-fractal/README.md` | 完整Pine→JS範例、8參數、PAPER/LIVE與狀態恢復 |
 
 斯巴達本身的規則（資金帳戶與合約帳戶、認購贖回、分潤）以官方倉庫為準：https://github.com/Onebullex-dev/spartan-strategy-partner-skill
 
@@ -38,8 +43,18 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 4. **安裝 FMZ 託管者**：使用者從 FMZ 下載 Linux 版託管者，執行 `sudo bash install_server.sh docker <壓縮檔>`。**FMZ 密碼由使用者本人在終端機輸入。**
 5. **綁定 IP**：執行 `sudo bash install_server.sh status` 取得主機對外 IP，請使用者提供給他的 OneBullEx 聯絡窗口，綁定 API key 白名單。
 6. **測試網驗證**：`check_testnet.py` → 資金從資金帳戶轉到合約帳戶（`obx_tool.py`）→ `smoke_trade.py` → `smoke_trade.py --fill`。
-7. **接上 FMZ**：在 FMZ 用「通用協議」新增交易所，用 `03-install-and-verify.md` 的三段調試腳本測試。接著依 `04-strategy-guide.md` 把策略改成**現貨寫法**（新版 FMZ 託管者不轉送 `SetContractType`、`SetDirection`、`SetMarginLevel`、`GetPositions`；bridge 以淨部位模式處理 `Buy`／`Sell`，持倉用 `exchange.IO` 查）。使用者已有合約寫法的策略時，依 `07-convert-strategy.md` 的流程轉換。在測試網跑實盤至少一段時間。
+7. **接上 FMZ**：在 FMZ 用「通用協議」新增交易所，用 `03-install-and-verify.md` 的三段調試腳本測試。接著依 `04-strategy-guide.md` 把策略改成**現貨寫法**（新版 FMZ 託管者不轉送 `SetContractType`、`SetDirection`、`SetMarginLevel`、`GetPositions`；bridge 以淨部位模式處理 `Buy`／`Sell`，持倉用 `exchange.IO` 查）。先辨識策略語言；JavaScript合約寫法依 `07-convert-strategy.md`，Pine另讀 `08-pine-compatibility.md`，所有數量先依 `09-quantity-and-risk.md` 核對。原生Pine圖形/日誌訊號不代表bridge收到交易。在測試網跑實盤至少一段時間。
 8. **上線**：逐項完成 `05-go-live.md` 的檢查清單，**取得 OneBullEx 確認後**才切換正式環境。
+
+## 從實測保留的操作原則
+
+- **三種模式分開**：PAPER模擬帳本、bridge測試網、bridge正式環境不是同一設定。LIVE只代表程式可送單，不代表一定是正式網。先核對OBX_ENV、所選憑證、私有託管者與已加入的交易所標籤；不讀出金鑰。
+- **張數不可猜測**：Buy/Sell的amount是整數張，先查contractSize/minQty；1張只是初始驗證設定，不是所有使用者的永久限制。軟體預設100張也不代表帳戶已獲核准。低於1張跳過、超限阻擋，不自行進位或拆單。
+- **成交與反手**：參考04與examples的執行模組，查單確認全部成交與有效AvgPrice，再核對淨倉。只有訊號或訂單ID不能算完成；查詢失敗不能當空倉。平倉未確認不得開反向倉，Buy/Sell結果不明不得重送。
+- **保存狀態**：策略意圖與訂單journal都要在送單前保存；有未決狀態先人工對帳，不能清空後再試。不要用現貨Stocks推算合約持倉，也不要只依Offset判斷開平倉。
+- **解釋畫面**：REVERSE_SHORT等是訊號名稱，不代表已開空；from=1,target=0是平多。介面不同區塊可能更新不同步，重新整理後核對啟動時間、模式及成交紀錄。
+- **移植差異**：Pine轉JS必須保留啟用的訊號/出場/參數，標明初值、平移、K線收盤、ATR算法與成交時機差異。正常策略與固定張數測試模式明確分開。
+- **公開交接**：公開文件使用通用名稱與匿名摘要，不發布私人帳戶名稱、主機IP、實盤/託管者/訂單ID、餘額、截圖或原始部署日誌。公開包由scripts/package_public.py產生，不能直接壓縮工作資料夾。
 
 ## 必須遵守的規則
 
