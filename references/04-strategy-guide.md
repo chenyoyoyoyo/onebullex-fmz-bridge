@@ -45,7 +45,8 @@ setDirection("closebuy", "1234567"); exchange.Sell(-1, 1)   // 分倉：平持�
 - 方向依 API key 各自記住。bridge 重新啟動後會回到淨部位模式，所以**每次下單前都呼叫一次 `setDirection`** 最保險。
 - 查目前設定：`exchange.IO("api", "GET", "/v2/fmz/direction", "")`。
 - **分倉的平倉規則**：一張平倉單只能平一筆持倉。沒指定時平最早開的那一筆（先進先出）；數量超過那一筆的可平張數會被擋下，請分批平，或指定持倉 ID。各筆持倉的 ID 用 `/v2/position/list` 查。
-- 合倉、分倉由帳戶設定決定，可在 OneBullEx 網頁切換，或 `exchange.IO("api", "POST", "/v2/position/change-type", ...)`。不確定策略需要哪一種時，用合倉。
+- 合倉、分倉由帳戶設定決定，可在 OneBullEx 網頁切換，或 `exchange.IO("api", "POST", "/v2/position/change-type", ...)`。切換後約數秒才會在 `/v2/position/confs` 看到新設定；有持倉時不要切換。不確定策略需要哪一種時，用合倉。
+- 分倉時先進先出的依據是持倉 ID（交易所的持倉資料沒有開倉時間欄位，持倉 ID 隨開倉時間遞增，已在正式環境確認）。
 - 多空同時持有不等於沒有風險：全倉的強平以整個帳戶的權益和維持保證金計算。
 
 ## 已驗證介面
