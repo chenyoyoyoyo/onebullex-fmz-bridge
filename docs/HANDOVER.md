@@ -19,7 +19,7 @@
 - 可將FMZ交易所設定命名為 `OneBullEx-Spartans`，或自訂名稱並同步範例的 `AF_ACCOUNT_LABEL`。
 - 調試與實盤選安裝bridge的**私有託管者**，不要選自動分配或公用主機。
 - 建立實盤選好交易所後，還要按 **＋**，確認已出現 `設定名稱/交易對` 標籤（例如 `OneBullEx-Spartans/BTCSPARTANS_USDT`）。選單顯示的候選平台不是已加入的平台。
-- 斯巴達的 BTC、ETH、黃金策略建議用專屬交易對 `BTCSPARTANS_USDT`、`ETHSPARTANS_USDT`、`XAUSPARTANS_USDT`；面值可能與一般交易對不同，見 [04](../references/04-strategy-guide.md)。
+- 斯巴達的 BTC、ETH、黃金策略建議用專屬交易對 `BTCSPARTANS_USDT`、`ETHSPARTANS_USDT`、`XAUSPARTANS_USDT`。**交易對下拉選單裡找不到，要在欄位直接輸入名稱，再點下方出現的選項。** 面值與一般交易對可能不同，見 [04](../references/04-strategy-guide.md)。
 - 先唯讀查行情、規格、餘額、持倉與掛單，再小量送單測試。
 
 ## 3. 選策略與數量

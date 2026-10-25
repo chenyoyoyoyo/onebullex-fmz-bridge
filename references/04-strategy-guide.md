@@ -35,13 +35,21 @@ amount 是**整數張**；price=-1 表示市價。持有3張多倉時，不能�
 
 OneBullEx 為斯巴達提供三個專屬交易對，風險限額遠高於一般交易對，適合資金池規模大的機器人。斯巴達的 BTC、ETH、黃金策略建議交易這三個：
 
-| 資產 | FMZ 交易對寫法 |
-| --- | --- |
-| BTC | `BTCSPARTANS_USDT` |
-| ETH | `ETHSPARTANS_USDT` |
-| 黃金 | `XAUSPARTANS_USDT` |
+| 資產 | FMZ 交易對寫法 | 1 張 | 價格跳動 |
+| --- | --- | --- | --- |
+| BTC | `BTCSPARTANS_USDT` | 0.0001 BTC | 0.1 |
+| ETH | `ETHSPARTANS_USDT` | 0.01 ETH | 0.01 |
+| 黃金 | `XAUSPARTANS_USDT` | 0.001 | 0.01 |
 
-- 在 FMZ 實盤或調試工具加入交易所時，交易對直接填上表寫法；策略內 `exchange.SetCurrency("BTCSPARTANS_USDT")` 也可以。
+（2026-10 正式環境查詢結果，最小都是 1 張；部署時仍以 `obx_tool.py spec` 為準。）
+
+**FMZ 的交易對下拉選單裡沒有這三個選項，要自己打字：**
+
+1. 在實盤或調試工具的交易對欄位點一下（預設顯示 `BTC_USDT`）。
+2. 直接輸入 `BTCSPARTANS_USDT`。
+3. 下方出現同名選項，點它即可。
+
+也可以在策略開頭寫 `exchange.SetCurrency("BTCSPARTANS_USDT")`，效果相同。
 - bridge 啟動後會讀取交易所的交易對清單，自動把 FMZ 寫法對應到交易所的名稱。
 - **每張的面值（contractSize）、最小張數、價格跳動可能和 BTC_USDT 不同**。上線前在伺服器執行 `python3 obx_tool.py spec BTCSPARTANS_USDT`，用實際的面值換算張數（見 `09-quantity-and-risk.md`）。
 - 想確認目前環境有哪些交易對：`python3 obx_tool.py symbols`（不需要金鑰）。
