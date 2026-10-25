@@ -7,7 +7,7 @@
 - README.md: 給人看的說明與交給 AI 助手的提示詞
 
 ## 操作指南
-- references/01-overview.md: 架構、準備事項、已知限制（單向持倉、整數張、只支援永續）
+- references/01-overview.md: 架構、準備事項、已知限制（淨部位／雙向／分倉三種持倉模式、整數張、只支援永續）
 - references/02-server-setup.md: 租用 Linux 伺服器（AWS Lightsail 與其他 VPS）
 - references/03-install-and-verify.md: 安裝 bridge 與 FMZ 託管者、測試網驗證、FMZ 交易所設定、維運指令
 - references/04-strategy-guide.md: FMZ 函數對應、開平倉方向、數量換算、範例策略

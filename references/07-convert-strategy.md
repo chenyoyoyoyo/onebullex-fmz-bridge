@@ -24,9 +24,9 @@
 | --- | --- | --- |
 | `SetContractType(` | 託管者報錯 | 刪除 |
 | `SetMarginLevel(` | 託管者報錯 | 改用 `exchange.IO("api", "POST", "/v2/position/adjust-leverage", "symbol=...&leverage=N")`，見 `04-strategy-guide.md`「槓桿」 |
-| `SetDirection(` | 被靜默忽略，方向會錯 | 刪除，改用淨部位邏輯（見第 2 步） |
+| `SetDirection(` | 被靜默忽略，方向會錯 | 單一方向策略：刪除，改用淨部位邏輯（見第 2 步）。同時多空或分倉策略：改成 `setDirection(`（見 `04-strategy-guide.md` 的「三種持倉模式」），其餘開平倉邏輯保留 |
 | `GetPosition(` / `GetPositions(` | 託管者報錯 | 改用 `netPosition()` |
-| `PD_LONG` / `PD_SHORT` / `.Type` / `.Amount`（持倉物件） | 持倉資料來源改變 | 改用淨部位的正負號 |
+| `PD_LONG` / `PD_SHORT` / `.Type` / `.Amount`（持倉物件） | 持倉資料來源改變 | 單一方向策略改用淨部位的正負號；雙向、分倉策略改讀 `/v2/position/list` 的 `positionSide`、`positionSize`、`positionId` |
 | `CreateOrder(` | 新版 API 的下單寫法，未在通用協議下驗證 | 改為 `Buy` / `Sell` |
 | `exchange.IO("cross"` / `"dual"` / 其他非 `"api"` 的 IO | 交易所專屬設定，通用協議不支援 | 刪除，並告知使用者 |
 | `GetTickers(` / `GetMarkets(` / `GetFundings(` | 通用協議未支援 | 改用 `exchange.IO("api", "GET", ...)` 查 OneBullEx 公開端點，或移除 |
@@ -45,7 +45,7 @@
 
 ## 3. 必須問使用者的情況（不要自己決定）
 
-- **對沖邏輯**：策略同時持有多單和空單（例如雙向網格、鎖倉）。OneBullEx 帳戶為單向持倉，無法照原意運作。說明限制，請使用者決定改成單一淨部位或放棄。
+- **持倉模式**：策略同時持有多單和空單（雙向網格、鎖倉）用雙向模式；同方向分批進場且每筆各自出場用分倉模式。這兩種都保留原本的開平倉邏輯，只把 `exchange.SetDirection(d)` 換成 `setDirection(d)`，不要改寫成淨部位。轉換前先向使用者確認策略屬於哪一種。
 - **數量單位**：原策略的數量若是依其他交易所的合約面值或幣數設定，在 OneBullEx 會差很多倍（OneBullEx BTC 每張 0.0001 BTC，以 `/v2/public/symbol/detail` 的 `contractSize` 為準）。列出換算結果，請使用者確認。
 - **交易對**：斯巴達的 BTC、ETH、黃金策略建議改用專屬交易對 `BTCSPARTANS_USDT`、`ETHSPARTANS_USDT`、`XAUSPARTANS_USDT`（風險限額較高）。改交易對時面值可能不同，張數要用 `obx_tool.py spec` 查到的面值重新換算，請使用者確認。
 - 任何你不確定原意的程式邏輯。
@@ -54,7 +54,7 @@
 
 - 先把第 1 步的表格與轉換後的完整程式碼給使用者看，**取得同意後**才儲存。
 - 存成新策略，名稱加上後綴，例如 `原名-OneBullEx版`。原策略保持不變。
-- 儲存後重新讀取一次，確認內容完整，且不再含有 `SetContractType(`、`SetDirection(`、`SetMarginLevel(`、`GetPositions(`（註解除外）。
+- 儲存後重新讀取一次，確認內容完整，且不再含有 `SetContractType(`、`exchange.SetDirection(`、`SetMarginLevel(`、`GetPositions(`（註解除外）。
 
 ## 5. 驗證與回報
 

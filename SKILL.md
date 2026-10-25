@@ -20,7 +20,7 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 
 | 檔案 | 內容 |
 | --- | --- |
-| `references/01-overview.md` | 架構、使用者需要準備什麼、已知限制（只支援單向持倉、整數張） |
+| `references/01-overview.md` | 架構、使用者需要準備什麼、已知限制（三種持倉模式、整數張） |
 | `references/02-server-setup.md` | 租用伺服器（AWS Lightsail 為主，其他 VPS 亦可） |
 | `references/03-install-and-verify.md` | 安裝 bridge 與託管者、測試網驗證 |
 | `references/04-strategy-guide.md` | FMZ 函數對應、策略要怎麼改、範例程式 |
@@ -37,13 +37,13 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 
 ## 流程（每一步確認成功才進下一步）
 
-1. **確認前提**（`01-overview.md`）：使用者已有 FMZ 帳號、OneBullEx 核發的機器人 API key（先用測試網）、策略屬於單一方向（非同時持有多空的對沖策略）。缺任何一項就先處理，不要往下做。
+1. **確認前提**（`01-overview.md`）：使用者已有 FMZ 帳號、OneBullEx 核發的機器人 API key（先用測試網）、並判斷策略需要哪一種持倉模式：單一方向用淨部位，同時持有多空用雙向，同方向多筆獨立持倉用分倉（`04-strategy-guide.md`）。缺任何一項就先處理，不要往下做。
 2. **租伺服器**（`02-server-setup.md`）：雲端帳號註冊、付款、建立主機由**使用者本人**在雲端主控台操作，你負責逐步引導並說明每個選項。完成後取得固定 IP 和 SSH 登入方式。
 3. **安裝 bridge**（`03-install-and-verify.md`）：上傳 `bridge/` 資料夾，執行 `sudo bash install_server.sh adapter`，確認輸出裡有 BTC 報價。
 4. **安裝 FMZ 託管者**：使用者從 FMZ 下載 Linux 版託管者，執行 `sudo bash install_server.sh docker <壓縮檔>`。**FMZ 密碼由使用者本人在終端機輸入。**
 5. **綁定 IP**：執行 `sudo bash install_server.sh status` 取得主機對外 IP，請使用者提供給他的 OneBullEx 聯絡窗口，綁定 API key 白名單。
-6. **測試網驗證**：`check_testnet.py` → 資金從資金帳戶轉到合約帳戶（`obx_tool.py`）→ `smoke_trade.py` → `smoke_trade.py --fill`。
-7. **接上 FMZ**：在 FMZ 用「通用協議」新增交易所，用 `03-install-and-verify.md` 的三段調試腳本測試。接著依 `04-strategy-guide.md` 把策略改成**現貨寫法**（新版 FMZ 託管者不轉送 `SetContractType`、`SetDirection`、`SetMarginLevel`、`GetPositions`；bridge 以淨部位模式處理 `Buy`／`Sell`，持倉用 `exchange.IO` 查）。先辨識策略語言；JavaScript合約寫法依 `07-convert-strategy.md`，Pine另讀 `08-pine-compatibility.md`，所有數量先依 `09-quantity-and-risk.md` 核對。原生Pine圖形/日誌訊號不代表bridge收到交易。在測試網跑實盤至少一段時間。
+6. **測試網驗證**：`check_testnet.py` → 資金從資金帳戶轉到合約帳戶（`obx_tool.py`）→ `smoke_trade.py` → `smoke_trade.py --fill`；雙向策略加跑 `--hedge`，分倉策略加跑 `--split`。
+7. **接上 FMZ**：在 FMZ 用「通用協議」新增交易所，用 `03-install-and-verify.md` 的三段調試腳本測試。接著依 `04-strategy-guide.md` 把策略改成**現貨寫法**（新版 FMZ 託管者不轉送 `SetContractType`、`SetDirection`、`SetMarginLevel`、`GetPositions`；bridge 預設以淨部位模式處理 `Buy`／`Sell`，雙向與分倉策略用 `setDirection` 設定方向，持倉用 `exchange.IO` 查）。先辨識策略語言；JavaScript合約寫法依 `07-convert-strategy.md`，Pine另讀 `08-pine-compatibility.md`，所有數量先依 `09-quantity-and-risk.md` 核對。原生Pine圖形/日誌訊號不代表bridge收到交易。在測試網跑實盤至少一段時間。
 8. **上線**：逐項完成 `05-go-live.md` 的檢查清單，**取得 OneBullEx 確認後**才切換正式環境。
 
 ## 從實測保留的操作原則

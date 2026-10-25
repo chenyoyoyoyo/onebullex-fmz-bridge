@@ -15,6 +15,16 @@ OneBullEx x FMZ 通用協議轉接程式（合約版）
 
 連正式環境必須明確加上 --env prod。
 
+下單模式（策略用 exchange.IO 切換，見 references/04-strategy-guide.md）：
+  - 淨部位（預設）：Buy = 有空單就平空、否則開多；Sell = 有多單就平多、否則開空。
+  - 雙向（同時持有多空）：新版 FMZ 託管者不轉送 SetDirection，改由策略呼叫
+        exchange.IO("api", "POST", "/v2/fmz/direction", "direction=sell")
+    設定之後下單的方向（buy 開多、sell 開空、closebuy 平多、closesell 平空、net 切回淨部位）。
+  - 分倉（同方向多筆獨立持倉）：平倉預設平最早的一筆；也可在設定方向時加上
+        "direction=closebuy&positionId=<持倉ID>"
+    指定下一筆平倉的對象（只作用一次）。
+  /v2/fmz/direction 由本程式處理，不會送到 OneBullEx。
+
 依據文件：OneBullEx Open API V2（文件版本 2.1.1，2026-09-22）。
 """
 
@@ -257,6 +267,7 @@ class AccountState:
         self.margin_level = None
         self.symbol = None
         self.leverage = {}           # 每個合約目前的槓桿（快取）
+        self.close_pid = None        # 分倉時指定下一筆平倉的持倉 ID（只作用一次）
 
 
 class Adapter:
@@ -386,12 +397,62 @@ class Adapter:
 
     # ---------------- 交易 ----------------
 
-    def _find_position_id(self, client, symbol, position_side):
+    @staticmethod
+    def _position_age(p):
+        """排序用：先看建立時間，沒有就用持倉 ID（遞增）。"""
+        t = _f(p.get("createdTime"), 0) or _f(p.get("openTime"), 0)
+        try:
+            pid = int(p.get("positionId"))
+        except (TypeError, ValueError):
+            pid = 0
+        return (t if t else float("inf"), pid)
+
+    def _find_position_id(self, client, symbol, position_side, target_pid=None):
+        """找要平倉的持倉，回傳 (持倉ID, 可平張數, 同方向持倉筆數)。
+        合倉時同方向只有一筆；分倉時同方向可能有多筆，預設取最早開的一筆（先進先出），
+        或由 target_pid 指定。"""
         rows = client.request("GET", "/v2/position/list", {"symbol": symbol}, private=True) or []
-        for p in rows:
-            if p.get("positionSide") == position_side and _f(p.get("positionSize")) > 0:
-                return p.get("positionId"), _f(p.get("availableCloseSize"), _f(p.get("positionSize")))
-        return None, 0.0
+        found = sorted((p for p in rows
+                        if p.get("positionSide") == position_side and _f(p.get("positionSize")) > 0),
+                       key=self._position_age)
+        if target_pid is not None:
+            for p in found:
+                if str(p.get("positionId")) == str(target_pid):
+                    return p.get("positionId"), _f(p.get("availableCloseSize"), _f(p.get("positionSize"))), len(found)
+            name = "多" if position_side == "LONG" else "空"
+            raise PluginError(f"{to_fmz_symbol(symbol)} 找不到指定的{name}單持倉 ID {target_pid}")
+        if found:
+            p = found[0]
+            return p.get("positionId"), _f(p.get("availableCloseSize"), _f(p.get("positionSize"))), len(found)
+        return None, 0.0, 0
+
+    @staticmethod
+    def _close_limit_msg(name, closable, count):
+        if count > 1:
+            return (f"分倉模式下同方向有 {count} 筆{name}單，一張平倉單只能平其中一筆；"
+                    f"這一筆最多可平 {closable:g} 張。請分批平倉，或用 exchange.IO 指定 positionId")
+        return f"目前持有{name}單 {closable:g} 張，單筆最多只能平 {closable:g} 張"
+
+    DIRECTIONS = ("buy", "sell", "closebuy", "closesell")
+
+    def _set_direction(self, st, d, position_id=None):
+        d = str(d or "").strip().lower()
+        if d == "net":
+            st.direction = "buy"
+            st.direction_set = False
+        elif d in self.DIRECTIONS:
+            st.direction = d
+            st.direction_set = True
+        else:
+            raise PluginError(f"不支援的下單方向：{d}，可用 buy、sell、closebuy、closesell、net")
+        if position_id not in (None, ""):
+            pid = str(position_id).strip()
+            if not pid.isdigit():
+                raise PluginError(f"持倉 ID 格式錯誤：{position_id}")
+            st.close_pid = pid
+        else:
+            st.close_pid = None
+        return d
 
     def _leverage_for_open(self, client, st, sym, position_side):
         """開倉單必須帶上與持倉設定一致的槓桿，否則 OneBullEx 回 order_leverage_not_match_position_leverage。
@@ -427,11 +488,13 @@ class Adapter:
             order_side, position_side, is_close = DIRECTION_MAP[key]
             pid = None
             if is_close:
-                pid, closable = self._find_position_id(client, sym, position_side)
+                name = "多" if position_side == "LONG" else "空"
+                pid, closable, count = self._find_position_id(client, sym, position_side, st.close_pid)
                 if not pid:
-                    raise PluginError(f"{to_fmz_symbol(sym)} 沒有可平的{'多' if position_side == 'LONG' else '空'}倉")
+                    raise PluginError(f"{to_fmz_symbol(sym)} 沒有可平的{name}倉")
                 if qty > closable:
-                    raise PluginError(f"平倉數量 {qty} 張超過可平數量 {closable:g} 張")
+                    raise PluginError(f"平倉數量 {qty} 張超過可平數量 {closable:g} 張。"
+                                      + (self._close_limit_msg(name, closable, count) if count > 1 else ""))
             return order_side, position_side, is_close, pid
 
         # 淨部位模式（新版 FMZ 託管者不轉送 SetDirection 時）：
@@ -440,13 +503,13 @@ class Adapter:
         if side not in ("buy", "sell"):
             raise PluginError(f"不支援的下單類型：{side}")
         opposite = "SHORT" if side == "buy" else "LONG"
-        pid, closable = self._find_position_id(client, sym, opposite)
+        pid, closable, count = self._find_position_id(client, sym, opposite, st.close_pid)
         if pid:
             name = "空" if opposite == "SHORT" else "多"
             if qty > closable:
                 raise PluginError(
-                    f"目前持有{name}單 {closable:g} 張，單筆最多只能平 {closable:g} 張。"
-                    f"要反手請先平掉{name}單，確認持倉為空後再開新方向")
+                    self._close_limit_msg(name, closable, count) + "。"
+                    f"要反手請先平掉全部{name}單，確認持倉為空後再開新方向")
             return order_side, opposite, True, pid
         return order_side, ("LONG" if side == "buy" else "SHORT"), False, None
 
@@ -463,7 +526,10 @@ class Adapter:
             raise PluginError("下單數量至少 1 張")
         self.limits.check_qty(qty)
         self.limits.check_rate()
-        order_side, position_side, is_close, pid = self._resolve_side(client, st, sym, side, qty)
+        try:
+            order_side, position_side, is_close, pid = self._resolve_side(client, st, sym, side, qty)
+        finally:
+            st.close_pid = None      # 指定的平倉對象只作用一次
 
         price = Decimal(str(params.get("price", "-1")))
         body = {
@@ -610,13 +676,8 @@ class Adapter:
                                {"symbol": st.symbol, "leverage": lev}, private=True)
                 st.leverage[st.symbol] = lev
             return {"data": lev}
-        if code == "1":   # SetDirection
-            d = str(args[0] if args else "").lower()
-            if d not in ("buy", "sell", "closebuy", "closesell"):
-                raise PluginError(f"不支援的下單方向：{d}")
-            st.direction = d
-            st.direction_set = True
-            return {"data": d}
+        if code == "1":   # SetDirection（舊版託管者才會轉送）
+            return {"data": self._set_direction(st, args[0] if args else "")}
         if code == "2":   # SetContractType
             ct = str(args[0] if args else "").lower()
             if ct != "swap":
@@ -629,7 +690,14 @@ class Adapter:
 
     def raw_api(self, client, st, path, params, http_method):
         """exchange.IO("api", ...) 直通 OneBullEx：開放 GET 查詢，以及 POST 調整槓桿（受槓桿上限保護）。
-        下單一律走 exchange.Buy / Sell，以免繞過安全限制。"""
+        下單一律走 exchange.Buy / Sell，以免繞過安全限制。
+        /v2/fmz/direction 由本程式處理：設定下單方向（與分倉的平倉對象），不送到 OneBullEx。"""
+        if path.rstrip("/") == "/v2/fmz/direction":
+            if not params.get("direction"):
+                return {"data": {"direction": st.direction if st.direction_set else "net",
+                                 "positionId": st.close_pid}}
+            d = self._set_direction(st, params.get("direction"), params.get("positionId"))
+            return {"data": d}
         if not path.startswith("/v2/"):
             raise PluginError("路徑必須以 /v2/ 開頭")
         if http_method.upper() == "POST" and path == "/v2/position/adjust-leverage":

@@ -4,7 +4,7 @@
 
 ## 1. 準備與安裝
 
-1. 讀 [概覽](../references/01-overview.md)，確認單向淨部位適用。
+1. 讀 [概覽](../references/01-overview.md)，確認策略需要的持倉模式（淨部位、雙向或分倉）。
 2. 依 [主機指南](../references/02-server-setup.md)建立專用Linux主機；主機費用由本人確認。
 3. 依 [安裝指南](../references/03-install-and-verify.md)安裝bridge與官方FMZ託管者。所有shell指令貼到**伺服器SSH終端機**，JavaScript貼到**FMZ策略編輯器或調試工具**，不要混貼。
 4. bridge與託管者必須同機；不要對外開6666埠。確認兩個systemd服務可用、報價正常、FMZ託管者在線。

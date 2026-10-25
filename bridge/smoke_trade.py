@@ -4,6 +4,8 @@
 
     python3 smoke_trade.py          掛一張不會成交的限價單 -> 查詢 -> 撤單（不產生持倉）
     python3 smoke_trade.py --fill   另外市價開多 1 張 -> 查持倉 -> 市價平多（約 8 美元，測平倉路徑）
+    python3 smoke_trade.py --hedge  雙向：開多 1 張、再開空 1 張 -> 確認多空同時存在 -> 各自平倉
+    python3 smoke_trade.py --split  分倉：暫時切成分倉 -> 開多兩次 -> 確認兩筆獨立持倉 -> 依序平倉 -> 切回合倉
 
 只能在測試網執行。讀取環境變數 OBX_API_KEY / OBX_SECRET。
 """
@@ -83,6 +85,78 @@ def main():
         call("市價平多 1 張", "trade", {"symbol": SYM, "type": "sell", "price": "-1", "amount": "1"})
         time.sleep(2)
         call("平倉後持倉（應為空）", "positions", {"symbol": SYM})
+
+    def direction(d, pid=None):
+        params = {"direction": d}
+        if pid:
+            params["positionId"] = pid
+        call(f"設定方向：{d}" + (f"（持倉 {pid}）" if pid else ""), "__api_/v2/fmz/direction", params)
+
+    def positions():
+        rows = client.request("GET", "/v2/position/list", {"symbol": "btc_usdt"}, private=True) or []
+        return [r for r in rows if float(r.get("positionSize") or 0) > 0]
+
+    def report(label, cond, detail):
+        nonlocal ok
+        ok &= bool(cond)
+        print(("OK   " if cond else "FAIL ") + f"{label}：{detail}")
+
+    if "--hedge" in sys.argv:
+        print("\n--- 雙向持倉測試（同時持有多空） ---")
+        direction("buy")
+        call("市價開多 1 張", "trade", {"symbol": SYM, "type": "buy", "price": "-1", "amount": "1"})
+        time.sleep(2)
+        direction("sell")
+        call("市價開空 1 張（持有多單時）", "trade", {"symbol": SYM, "type": "sell", "price": "-1", "amount": "1"})
+        time.sleep(2)
+        sides = {r.get("positionSide"): r.get("positionSize") for r in positions()}
+        report("多空同時存在", "LONG" in sides and "SHORT" in sides, sides)
+        direction("closebuy")
+        call("市價平多 1 張", "trade", {"symbol": SYM, "type": "sell", "price": "-1", "amount": "1"})
+        time.sleep(2)
+        direction("closesell")
+        call("市價平空 1 張", "trade", {"symbol": SYM, "type": "buy", "price": "-1", "amount": "1"})
+        time.sleep(2)
+        left = positions()
+        report("平倉後持倉（應為空）", not left, left)
+        direction("net")
+
+    if "--split" in sys.argv:
+        print("\n--- 分倉測試（同方向多筆獨立持倉） ---")
+        confs = client.request("GET", "/v2/position/confs", {"symbol": "btc_usdt"}, private=True) or []
+        ptype = next((c.get("positionType") for c in confs if c.get("positionType")), "CROSSED")
+        if positions():
+            sys.exit("目前仍有持倉，請先平倉再跑分倉測試")
+        print("切換為分倉：", client.request("POST", "/v2/position/change-type",
+              {"symbol": "btc_usdt", "positionType": ptype, "positionModel": "DISAGGREGATION"}, private=True))
+        try:
+            direction("buy")
+            call("市價開多 1 張（第一筆）", "trade", {"symbol": SYM, "type": "buy", "price": "-1", "amount": "1"})
+            time.sleep(2)
+            call("市價開多 1 張（第二筆）", "trade", {"symbol": SYM, "type": "buy", "price": "-1", "amount": "1"})
+            time.sleep(2)
+            longs = [r for r in positions() if r.get("positionSide") == "LONG"]
+            report("同方向兩筆獨立持倉", len(longs) == 2, [(r.get("positionId"), r.get("positionSize")) for r in longs])
+            if longs:
+                print("持倉欄位（確認排序依據）：", sorted(longs[0].keys()))
+            last_id = longs[-1].get("positionId") if longs else None
+            direction("closebuy", last_id)
+            call(f"指定平倉 {last_id}", "trade", {"symbol": SYM, "type": "sell", "price": "-1", "amount": "1"})
+            time.sleep(2)
+            left = [r.get("positionId") for r in positions()]
+            report("指定的那筆已平、另一筆還在", last_id not in left and len(left) == 1, left)
+            direction("closebuy")
+            call("先進先出平倉剩下一筆", "trade", {"symbol": SYM, "type": "sell", "price": "-1", "amount": "1"})
+            time.sleep(2)
+            left = positions()
+            report("平倉後持倉（應為空）", not left, left)
+        finally:
+            direction("net")
+            if not positions():
+                print("切回合倉：", client.request("POST", "/v2/position/change-type",
+                      {"symbol": "btc_usdt", "positionType": ptype, "positionModel": "AGGREGATION"}, private=True))
+            else:
+                print("仍有持倉，未切回合倉。請到網頁平倉後，把持倉模式改回『合倉』")
 
     try:
         print("\n持倉模式設定：", client.request("GET", "/v2/position/confs", {"symbol": "btc_usdt"}, private=True))

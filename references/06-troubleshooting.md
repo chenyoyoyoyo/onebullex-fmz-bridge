@@ -25,7 +25,9 @@
 | `目前持有多單／空單 N 張，單筆最多只能平 N 張` | 淨部位模式不自動反手。先平掉原部位，確認持倉為空再開新方向（見 `04-strategy-guide.md` 的 `moveTo`） |
 | `order_leverage_not_match_position_leverage` | 開倉槓桿與合約設定不符。確認使用最新版 bridge（會自動帶入帳戶槓桿） |
 | `not supported by Exchange` / `unsupported rest method` | FMZ 託管者擋下合約專屬函數（`SetContractType`、`SetMarginLevel`、`GetPositions`）。改用現貨寫法，見 `04-strategy-guide.md` |
-| `下單方向與 SetDirection 不符` | 只會出現在舊版託管者有轉送 `SetDirection` 時：方向與下單函數沒有成對 |
+| `下單方向與 SetDirection 不符` | 雙向或分倉模式下方向與下單函數沒有成對：`buy`、`closesell` 配 `Buy`；`sell`、`closebuy` 配 `Sell`。不需要時呼叫 `setDirection("net")` 切回淨部位 |
+| `分倉模式下同方向有 N 筆…一張平倉單只能平其中一筆` | 分倉時一張平倉單只能平一筆持倉。分批平倉，或用 `setDirection("closebuy", 持倉ID)` 指定 |
+| `找不到指定的多單／空單持倉 ID` | 指定的持倉已平掉或 ID 抄錯。用 `/v2/position/list` 重新查 |
 | `合約數量必須是整數張` / `invalid_quantity` | 數量要換算成整數張 |
 | `不在允許清單內` | 主機的 `OBX_ALLOWED` 設了清單且不含此交易對。改成 `all` 或加入清單後重啟 bridge |
 | `超過上限`（張數、槓桿） | 主機設定檔或策略參數有自設的防呆值。確認是否真要下這麼大，再調整 `OBX_MAX_QTY`／`OBX_MAX_LEV` 或策略參數 |

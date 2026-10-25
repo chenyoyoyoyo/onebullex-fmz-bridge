@@ -13,6 +13,41 @@
 
 amount 是**整數張**；price=-1 表示市價。持有3張多倉時，不能直接Sell 5張來反手。先平3張、確認成交與空倉，再另開2張空倉。
 
+## 三種持倉模式：淨部位、雙向、分倉
+
+OneBullEx 的多單、空單是兩個分開的持倉（`positionSide` 為 `LONG`、`SHORT`），可以同時存在。帳戶另有「合倉／分倉」設定（`positionModel`）：合倉（`AGGREGATION`）時同方向的成交合併成一筆持倉；分倉（`DISAGGREGATION`）時同方向的每次開倉都是一筆獨立持倉。bridge 依策略需要提供三種下單模式：
+
+| 模式 | 適用策略 | 帳戶設定 | 策略寫法 |
+| --- | --- | --- | --- |
+| 淨部位（預設） | 趨勢、單向網格，同一時間只有一個方向 | 合倉 | 上方的 `Buy`／`Sell` 規則，不需額外設定 |
+| 雙向 | 對沖、鎖倉、雙向網格，同時持有多單和空單 | 合倉 | 下單前用 `setDirection` 指定開多、開空、平多、平空 |
+| 分倉 | 同方向分批進場、每筆各自停利停損 | 分倉 | 同雙向；平倉預設平最早的一筆，也可指定持倉 ID |
+
+新版託管者不轉送 `SetDirection`，所以改用 `exchange.IO` 告訴 bridge 下一筆單的方向。`/v2/fmz/direction` 由 bridge 自己處理，不會送到 OneBullEx：
+
+```javascript
+// 取代 exchange.SetDirection(d)
+// d = "buy" 開多、"sell" 開空、"closebuy" 平多、"closesell" 平空、"net" 切回淨部位模式
+// positionId（選填）：分倉時指定下一筆平倉要平哪一筆持倉，只作用一次
+function setDirection(d, positionId) {
+    return exchange.IO("api", "POST", "/v2/fmz/direction",
+        "direction=" + d + (positionId ? "&positionId=" + positionId : ""))
+}
+
+setDirection("buy");       exchange.Buy(-1, 2)    // 開多 2 張
+setDirection("sell");      exchange.Sell(-1, 2)   // 開空 2 張（多單保留）
+setDirection("closebuy");  exchange.Sell(-1, 2)   // 平多 2 張
+setDirection("closesell"); exchange.Buy(-1, 2)    // 平空 2 張
+setDirection("closebuy", "1234567"); exchange.Sell(-1, 1)   // 分倉：平持倉 ID 1234567 的多單 1 張
+```
+
+- 方向設定後持續有效，直到下一次設定，和 FMZ 原生 `SetDirection` 相同。開多、平空用 `Buy`；開空、平多用 `Sell`，不成對會被擋下。
+- 方向依 API key 各自記住。bridge 重新啟動後會回到淨部位模式，所以**每次下單前都呼叫一次 `setDirection`** 最保險。
+- 查目前設定：`exchange.IO("api", "GET", "/v2/fmz/direction", "")`。
+- **分倉的平倉規則**：一張平倉單只能平一筆持倉。沒指定時平最早開的那一筆（先進先出）；數量超過那一筆的可平張數會被擋下，請分批平，或指定持倉 ID。各筆持倉的 ID 用 `/v2/position/list` 查。
+- 合倉、分倉由帳戶設定決定，可在 OneBullEx 網頁切換，或 `exchange.IO("api", "POST", "/v2/position/change-type", ...)`。不確定策略需要哪一種時，用合倉。
+- 多空同時持有不等於沒有風險：全倉的強平以整個帳戶的權益和維持保證金計算。
+
 ## 已驗證介面
 
 | 用途 | 寫法與注意 |
@@ -98,11 +133,12 @@ function main() {
 | 合約寫法 | 通用協議替代 |
 | --- | --- |
 | `SetContractType("swap")` | 移除；帳戶/合約在部署時核對 |
-| `SetDirection(...)` | 移除；以淨部位決定開平倉 |
+| `SetDirection(...)` | 單一方向策略：移除，以淨部位決定開平倉。同時多空或分倉策略：改成 `setDirection(...)`，見「三種持倉模式」 |
 | `SetMarginLevel(n)` | 用IO調整（見上方「槓桿」），或沿用帳戶槓桿 |
 | `GetPositions()` | IO持倉查詢或execution.position() |
 | 幣數直接Buy/Sell | 依合約面值換成整數張，見09 |
-| 同時多空 | 本工具包單向淨部位範例不適用，先釐清策略意圖 |
+| 同時多空 | 雙向模式；保留原本的開平倉邏輯，不要改寫成淨部位 |
+| 同方向多筆獨立持倉 | 分倉模式；平倉時注意一張單只能平一筆持倉 |
 
 只有讀取可做有限次重試；永遠不要把 `_C` 或泛用重試器包在 Buy/Sell 外。查詢失敗不得當成空倉。
 

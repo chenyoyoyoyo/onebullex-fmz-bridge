@@ -337,6 +337,75 @@ def main():
           (plugin.to_ob_symbol("BTCSPARTANS_USDT"), plugin.to_fmz_symbol("btcspartansusdt")))
     plugin.KNOWN_SYMBOLS.clear(); plugin.KNOWN_SYMBOLS.update(saved_known)
 
+    # 15. 雙向模式：透過 exchange.IO 設定方向，同時持有多空
+    adapter._states.clear()
+    STATE["leverage"] = 20
+    long_pos = {"symbol": "btc_usdt", "positionId": "555", "positionType": "CROSSED",
+                "positionSide": "LONG", "positionSize": "3", "availableCloseSize": "3",
+                "entryPrice": "60000", "isolatedMargin": "0", "leverage": 20, "contractSize": "0.001"}
+    short_pos = dict(long_pos, positionId="777", positionSide="SHORT", positionSize="2", availableCloseSize="2")
+    saved_pos = STATE["positions"]
+    STATE["positions"] = [long_pos]
+    r = fmz("__api_/v2/fmz/direction", {})
+    check("雙向：預設為淨部位模式", (r.get("data") or {}).get("direction") == "net", r)
+    r = fmz("__api_/v2/fmz/direction", {"direction": "sell"}, http_method="POST")
+    check("雙向：exchange.IO 設定方向 sell", r.get("data") == "sell", r)
+    r = fmz("trade", {"symbol": "btc_usdt", "type": "sell", "price": "-1", "amount": "1"})
+    body = STATE["last_body"] or {}
+    check("雙向：持有多單時 sell = 開空（不平多）", "data" in r and body.get("positionSide") == "SHORT"
+          and body.get("orderSide") == "SELL" and "positionId" not in body and body.get("leverage") == 20, (r, body))
+    r = fmz("trade", {"symbol": "btc_usdt", "type": "buy", "price": "-1", "amount": "1"})
+    check("雙向：方向 sell 時下 Buy 被擋", "不符" in r.get("error", ""), r)
+    STATE["positions"] = [long_pos, short_pos]
+    fmz("__api_/v2/fmz/direction", {"direction": "buy"}, http_method="POST")
+    r = fmz("trade", {"symbol": "btc_usdt", "type": "buy", "price": "-1", "amount": "1"})
+    body = STATE["last_body"] or {}
+    check("雙向：持有空單時 buy = 加開多（不平空）", "data" in r and body.get("positionSide") == "LONG"
+          and "positionId" not in body, (r, body))
+    fmz("__api_/v2/fmz/direction", {"direction": "closesell"}, http_method="POST")
+    r = fmz("trade", {"symbol": "btc_usdt", "type": "buy", "price": "-1", "amount": "2"})
+    body = STATE["last_body"] or {}
+    check("雙向：closesell 平空帶空單持倉 ID", "data" in r and body.get("positionId") == 777
+          and body.get("positionSide") == "SHORT" and body.get("orderSide") == "BUY", (r, body))
+    fmz("__api_/v2/fmz/direction", {"direction": "closebuy"}, http_method="POST")
+    r = fmz("trade", {"symbol": "btc_usdt", "type": "sell", "price": "-1", "amount": "3"})
+    body = STATE["last_body"] or {}
+    check("雙向：closebuy 平多帶多單持倉 ID", "data" in r and body.get("positionId") == 555, (r, body))
+    r = fmz("__api_/v2/fmz/direction", {"direction": "up"}, http_method="POST")
+    check("雙向：錯誤方向被擋", "不支援的下單方向" in r.get("error", ""), r)
+
+    # 16. 分倉：同方向多筆獨立持倉
+    old_long = dict(long_pos, positionId="901", positionSize="2", availableCloseSize="2", createdTime=1000)
+    new_long = dict(long_pos, positionId="902", positionSize="5", availableCloseSize="5", createdTime=2000)
+    STATE["positions"] = [new_long, old_long]
+    fmz("__api_/v2/fmz/direction", {"direction": "closebuy"}, http_method="POST")
+    r = fmz("trade", {"symbol": "btc_usdt", "type": "sell", "price": "-1", "amount": "2"})
+    body = STATE["last_body"] or {}
+    check("分倉：未指定時平最早開的一筆（先進先出）", "data" in r and body.get("positionId") == 901, (r, body))
+    r = fmz("trade", {"symbol": "btc_usdt", "type": "sell", "price": "-1", "amount": "3"})
+    check("分倉：超過最早一筆的張數時提示分批或指定", "分倉" in r.get("error", "") and "positionId" in r.get("error", ""), r)
+    r = fmz("__api_/v2/fmz/direction", {"direction": "closebuy", "positionId": "902"}, http_method="POST")
+    r2 = fmz("trade", {"symbol": "btc_usdt", "type": "sell", "price": "-1", "amount": "5"})
+    body = STATE["last_body"] or {}
+    check("分倉：exchange.IO 指定 positionId 平倉", r.get("data") == "closebuy" and "data" in r2
+          and body.get("positionId") == 902, (r, r2, body))
+    r = fmz("trade", {"symbol": "btc_usdt", "type": "sell", "price": "-1", "amount": "1"})
+    body = STATE["last_body"] or {}
+    check("分倉：指定的 positionId 只作用一次，下一筆回到先進先出", "data" in r and body.get("positionId") == 901, (r, body))
+    fmz("__api_/v2/fmz/direction", {"direction": "closebuy", "positionId": "999"}, http_method="POST")
+    r = fmz("trade", {"symbol": "btc_usdt", "type": "sell", "price": "-1", "amount": "1"})
+    check("分倉：指定不存在的 positionId 被擋", "找不到指定" in r.get("error", ""), r)
+    r = fmz("__api_/v2/fmz/direction", {"direction": "closebuy", "positionId": "abc"}, http_method="POST")
+    check("分倉：positionId 格式錯誤被擋", "格式錯誤" in r.get("error", ""), r)
+    r = fmz("__api_/v2/fmz/direction", {"direction": "net"}, http_method="POST")
+    r2 = fmz("trade", {"symbol": "btc_usdt", "type": "sell", "price": "-1", "amount": "2"})
+    body = STATE["last_body"] or {}
+    check("分倉＋淨部位：sell 平最早的多單", r.get("data") == "net" and "data" in r2
+          and body.get("positionId") == 901, (r, r2, body))
+    r = fmz("__api_/v2/fmz/direction", {"direction": "sell"}, http_method="POST", key="other_key")
+    check("方向設定依 API key 各自獨立", "data" in r and adapter.state(API_KEY).direction_set is False, r)
+    STATE["positions"] = saved_pos
+
     passed = sum(ok for _, ok in RESULTS)
     print(f"\n{passed}/{len(RESULTS)} 項通過")
     sys.exit(0 if passed == len(RESULTS) else 1)
