@@ -15,7 +15,14 @@ git clone https://github.com/chenyoyoyoyo/onebullex-fmz-bridge ~/onebullex-fmz-b
 ln -sfn ~/onebullex-fmz-bridge/bridge ~/onebullex_fmz
 ```
 
-日後更新：`cd ~/onebullex-fmz-bridge && git pull`，再執行 `sudo bash ~/onebullex_fmz/install_server.sh adapter`（設定檔會保留）。
+日後更新（設定檔會保留）：
+
+```bash
+cd ~/onebullex-fmz-bridge && git pull
+sudo bash ~/onebullex-fmz-bridge/bridge/install_server.sh adapter
+```
+
+`git pull` 只會更新下載的程式碼；**一定要再跑第二行**，正在執行的 bridge（`/opt/onebullex_fmz`）才會換成新版並重新啟動。
 
 伺服器無法連 GitHub 時，改從自己的電腦上傳：`scp -i <私鑰.pem> -r <倉庫路徑>/bridge ubuntu@<固定IP>:~/onebullex_fmz`。
 
@@ -126,10 +133,10 @@ function main() {
 
 | 要做的事 | 指令 |
 | --- | --- |
-| 查看狀態與 IP | `sudo bash ~/onebullex_fmz/install_server.sh status` |
+| 查看狀態與 IP | `sudo bash ~/onebullex-fmz-bridge/bridge/install_server.sh status` |
 | bridge 即時日誌 | `sudo journalctl -u onebullex-fmz -f` |
 | 託管者日誌 | `sudo tail -f /opt/robot/logs/docker.log` |
 | 重啟 bridge | `sudo systemctl restart onebullex-fmz` |
 | 重啟託管者 | `sudo systemctl restart fmz-robot` |
-| 更新 bridge | `cd ~/onebullex-fmz-bridge && git pull`，再重跑 `sudo bash ~/onebullex_fmz/install_server.sh adapter`（設定檔保留） |
+| 更新 bridge | `cd ~/onebullex-fmz-bridge && git pull`，再重跑 `sudo bash ~/onebullex-fmz-bridge/bridge/install_server.sh adapter`（設定檔保留） |
 | 升級託管者 | 重跑 `sudo bash install_server.sh docker <新壓縮檔>`（帳號與實盤資料保留） |
