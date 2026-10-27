@@ -18,6 +18,8 @@
 ## 程式
 - bridge/onebullex_fmz_plugin.py: 轉接程式
 - bridge/install_server.sh: 伺服器安裝腳本（adapter、docker、status）
+- bridge/tv_webhook.py: TradingView 訊號接收程式（目標持倉）
+- bridge/tests/test_tv.py: 訊號接收程式離線測試
 - bridge/check_testnet.py: 連線檢查
 - bridge/obx_tool.py: 餘額與轉帳
 - bridge/smoke_trade.py: 測試網下單測試
@@ -30,6 +32,7 @@
 
 ## Pine、數量與公開交接
 - references/08-pine-compatibility.md: 原生Pine觀察、JS移植與成交驗收
+- references/10-tradingview.md: TradingView 警報直接接入斯巴達 bot（tv_webhook.py、Caddy HTTPS、訊息範本）
 - references/09-quantity-and-risk.md: 張數/幣數/名目金額/風險換算
 - docs/HANDOVER.md: 所有FMZ使用者的公開交接指南
 - docs/VALIDATION.md: 匿名驗證範圍與限制

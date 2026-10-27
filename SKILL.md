@@ -28,6 +28,7 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 | `references/06-troubleshooting.md` | 錯誤訊息對照與處理 |
 | `references/07-convert-strategy.md` | 策略轉換：語言分流、掃描、另存與驗證 |
 | `references/08-pine-compatibility.md` | Pine 現貨執行分支的數量/持倉問題、JS移植檢查表 |
+| `references/10-tradingview.md` | TradingView 警報直接接入（不經 FMZ）：安裝、HTTPS、警報訊息範本、試跑與正式下單 |
 | `references/09-quantity-and-risk.md` | 幣數/張數/名目金額/保證金/風險換算、選用的防呆設定 |
 | `docs/HANDOVER.md` | 面向所有使用者的部署與驗收交接 |
 | `docs/VALIDATION.md` | 匿名驗證範圍；不得把未驗證項目當成功 |
@@ -36,6 +37,8 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 斯巴達本身的規則（資金帳戶與合約帳戶、認購贖回、分潤）以官方倉庫為準：https://github.com/Onebullex-dev/spartan-strategy-partner-skill
 
 ## 流程（每一步確認成功才進下一步）
+
+**使用者用 TradingView 而不是 FMZ 時**：改走 `references/10-tradingview.md`（租主機 → `install_server.sh tv` → 開放 80、443 → `install_server.sh https` → TradingView 警報 → 試跑 → 正式）。不需要 FMZ 託管者。API key 由使用者在終端機輸入；把 `TV_DRY_RUN` 改成 0 之前，先讓使用者看過試跑紀錄並同意。
 
 1. **確認前提**（`01-overview.md`）：使用者已有 FMZ 帳號、OneBullEx 核發的機器人 API key（先用測試網）、並判斷策略需要哪一種持倉模式：單一方向用淨部位，同時持有多空用雙向，同方向多筆獨立持倉用分倉（`04-strategy-guide.md`）。缺任何一項就先處理，不要往下做。
 2. **租伺服器**（`02-server-setup.md`）：雲端帳號註冊、付款、建立主機由**使用者本人**在雲端主控台操作，你負責逐步引導並說明每個選項。完成後取得固定 IP 和 SSH 登入方式。
