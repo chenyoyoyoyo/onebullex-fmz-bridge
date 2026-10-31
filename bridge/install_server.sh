@@ -4,11 +4,9 @@
 #   sudo bash install_server.sh adapter                       安裝轉接程式並設為開機自動啟動
 #   sudo bash install_server.sh docker <FMZ託管者壓縮檔路徑>    安裝 FMZ 託管者並設為開機自動啟動
 #   sudo bash install_server.sh status                        檢查服務、連線與本機對外 IP
-#   sudo bash install_server.sh tv                            安裝 TradingView 訊號接收程式（輸入 API key、產生 passphrase）
-#   sudo bash install_server.sh https [網域]                  安裝 Caddy，提供 TradingView 用的 HTTPS 網址（預設用 IP.sslip.io）
 #
-# 只用 FMZ 時，主機不需要開放任何對外連接埠（SSH 除外）。
-# 使用 TradingView 時，雲端防火牆需開放 80（申請憑證）與 443（接收訊號）。
+# 主機不需要開放任何對外連接埠（SSH 除外）。
+# TradingView 警報直接下單請改用：https://github.com/chenyoyoyoyo/onebullex-tradingview-bridge
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,8 +17,6 @@ APP_SVC=onebullex-fmz
 ROBOT_DIR=/opt/robot
 ROBOT_SVC=fmz-robot
 STRAT_USER=fmzstrat
-TV_ENV=/etc/onebullex-tv.env
-TV_SVC=onebullex-tv
 
 say()  { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m[注意] %s\033[0m\n' "$*"; }
@@ -56,7 +52,7 @@ install_adapter() {
   ensure_user "$APP_USER"
   install -d -m 755 "$APP_DIR"
   install -m 644 "$SRC_DIR/onebullex_fmz_plugin.py" "$APP_DIR/"
-  for f in obx_tool.py check_testnet.py smoke_trade.py tv_webhook.py README.md; do
+  for f in obx_tool.py check_testnet.py smoke_trade.py README.md; do
     [ -f "$SRC_DIR/$f" ] && install -m 644 "$SRC_DIR/$f" "$APP_DIR/"
   done
 
@@ -207,144 +203,9 @@ show_status() {
   [ -f "$APP_ENV" ] && { say "目前設定"; grep -E '^OBX_' "$APP_ENV"; }
 }
 
-public_ip() { curl -s -m 10 https://checkip.amazonaws.com | tr -d '[:space:]'; }
-default_domain() { local ip; ip="$(public_ip)"; [ -n "$ip" ] && echo "${ip//./-}.sslip.io"; }
-
-install_tv() {
-  need_root tv
-  [ -f "$SRC_DIR/tv_webhook.py" ] || die "找不到 tv_webhook.py，請在程式資料夾內執行本腳本"
-  if [ ! -f "$APP_DIR/onebullex_fmz_plugin.py" ] || ! cmp -s "$SRC_DIR/onebullex_fmz_plugin.py" "$APP_DIR/onebullex_fmz_plugin.py"; then
-    say "先安裝或更新轉接程式（訊號接收程式會共用它的連線與簽名）"
-    install_adapter
-  fi
-  install -m 644 "$SRC_DIR/tv_webhook.py" "$APP_DIR/"
-
-  if [ ! -f "$TV_ENV" ]; then
-    say "設定 TradingView 訊號接收程式（金鑰輸入時不會顯示）"
-    local env key secret pass
-    read -rp "連線環境 test 或 prod [test]：" env
-    env="${env:-test}"
-    [ "$env" = test ] || [ "$env" = prod ] || die "只能輸入 test 或 prod"
-    read -rp "OneBullEx 機器人 API Key：" key
-    [ -n "$key" ] || die "API Key 不可為空"
-    read -rsp "OneBullEx 機器人 API Secret：" secret; echo
-    [ -n "$secret" ] || die "API Secret 不可為空"
-    pass="$(python3 -c 'import secrets; print(secrets.token_urlsafe(18))')"
-    umask 077
-    cat > "$TV_ENV" <<EOF
-# TradingView 訊號接收程式設定。修改後執行：sudo systemctl restart $TV_SVC
-OBX_ENV=$env
-OBX_API_KEY=$key
-OBX_SECRET=$secret
-# TradingView 警報訊息裡的 passphrase 必須與此相同
-TV_PASSPHRASE=$pass
-TV_PORT=8780
-# 1 = 試跑（只記錄要下的單，不送出）；確認訊號正確後改成 0
-TV_DRY_RUN=1
-# 以下為選用：來源 IP（預設 TradingView 官方 4 個）、交易對清單、持倉上限（張）、開倉槓桿（0 = 沿用帳戶）
-TV_ALLOWED_IPS=
-TV_SYMBOLS=all
-TV_MAX_QTY=0
-TV_LEVERAGE=0
-EOF
-    chown root:"$APP_USER" "$TV_ENV"
-    chmod 640 "$TV_ENV"
-    unset secret
-  else
-    warn "保留既有設定 $TV_ENV（要重設請先刪除此檔）"
-  fi
-
-  say "設定開機自動啟動（systemd：$TV_SVC）"
-  cat > "/etc/systemd/system/${TV_SVC}.service" <<EOF
-[Unit]
-Description=OneBullEx TradingView webhook receiver
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=$APP_USER
-EnvironmentFile=$TV_ENV
-WorkingDirectory=$APP_DIR
-ExecStart=/usr/bin/python3 $APP_DIR/tv_webhook.py
-Restart=always
-RestartSec=3
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=yes
-PrivateTmp=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  systemctl daemon-reload
-  systemctl enable --now "$TV_SVC" >/dev/null
-  systemctl restart "$TV_SVC"
-  sleep 2
-  if systemctl is-active --quiet "$TV_SVC"; then
-    say "訊號接收程式已啟動（目前為試跑模式，不會下單）"
-    journalctl -u "$TV_SVC" -n 3 --no-pager -o cat || true
-    say "TradingView 警報訊息要帶的 passphrase："
-    grep -E '^TV_PASSPHRASE=' "$TV_ENV" | cut -d= -f2-
-    echo "下一步：sudo bash $0 https   （建立 TradingView 用的 HTTPS 網址）"
-  else
-    warn "訊號接收程式沒有啟動，請執行：sudo journalctl -u $TV_SVC -n 50"
-  fi
-}
-
-install_https() {
-  need_root https
-  local domain="${1:-}"
-  [ -n "$domain" ] || domain="$(default_domain)"
-  [ -n "$domain" ] || die "查不到本機對外 IP，請自行指定網域：sudo bash $0 https 你的網域"
-  local port; port="$(grep -E '^TV_PORT=' "$TV_ENV" 2>/dev/null | cut -d= -f2)"; port="${port:-8780}"
-
-  say "安裝 Caddy（自動申請與更新 HTTPS 憑證）"
-  command -v caddy >/dev/null 2>&1 || { apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y -qq caddy; }
-  cat > /etc/caddy/Caddyfile <<EOF
-# TradingView 訊號接收（由 install_server.sh https 產生）
-$domain {
-	handle /webhook {
-		reverse_proxy 127.0.0.1:$port
-	}
-	handle {
-		respond "OK" 200
-	}
-}
-EOF
-  systemctl enable --now caddy >/dev/null
-  systemctl reload caddy || systemctl restart caddy
-  say "等待憑證申請（約 10–60 秒；雲端防火牆必須已開放 80 與 443）"
-  local i ok=""
-  for i in $(seq 1 12); do
-    if curl -s -m 5 "https://$domain/" >/dev/null 2>&1; then ok=1; break; fi
-    sleep 5
-  done
-  if [ -n "$ok" ]; then
-    say "完成。TradingView 警報的 Webhook URL："
-    echo "https://$domain/webhook"
-  else
-    warn "還連不到 https://$domain/ 。請確認雲端防火牆已開放 80、443，再執行：sudo journalctl -u caddy -n 30"
-  fi
-}
-
-show_tv_status() {
-  say "TradingView 訊號接收程式（$TV_SVC）"
-  systemctl is-active "$TV_SVC" 2>/dev/null || true
-  grep -E '^(OBX_ENV|TV_DRY_RUN|TV_SYMBOLS|TV_MAX_QTY|TV_LEVERAGE)=' "$TV_ENV"
-  local port; port="$(grep -E '^TV_PORT=' "$TV_ENV" | cut -d= -f2)"
-  say "最近處理的訊號"
-  curl -s -m 5 "http://127.0.0.1:${port:-8780}/status" || true; echo
-  if [ -f /etc/caddy/Caddyfile ]; then
-    say "Webhook URL"
-    echo "https://$(grep -m1 -E '^[a-z0-9.-]+ \{' /etc/caddy/Caddyfile | cut -d' ' -f1)/webhook"
-  fi
-}
-
 case "${1:-}" in
   adapter) install_adapter ;;
   docker)  install_docker "${2:-}" ;;
-  status)  show_status; [ -f "$TV_ENV" ] && show_tv_status || true ;;
-  tv)      install_tv ;;
-  https)   install_https "${2:-}" ;;
-  *) sed -n '2,12p' "$0"; exit 1 ;;
+  status)  show_status ;;
+  *) sed -n '2,10p' "$0"; exit 1 ;;
 esac
