@@ -6,7 +6,7 @@
 #   sudo bash install_server.sh status                        檢查服務、連線與本機對外 IP
 #
 # 主機不需要開放任何對外連接埠（SSH 除外）。
-# TradingView 警報直接下單請改用：https://github.com/chenyoyoyoyo/onebullex-tradingview-bridge
+# TradingView 警報直接下單請改用：https://github.com/chenyoyoyoyo/onebullex-tradingview-mt4-mt5-bridge
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

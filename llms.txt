@@ -30,7 +30,7 @@
 
 ## Pine、數量與公開交接
 - references/08-pine-compatibility.md: 原生Pine觀察、JS移植與成交驗收
-- references/10-tradingview.md: TradingView 警報直接接入已移到 https://github.com/chenyoyoyoyo/onebullex-tradingview-bridge
+- references/10-tradingview.md: TradingView 警報直接接入已移到 https://github.com/chenyoyoyoyo/onebullex-tradingview-mt4-mt5-bridge
 - references/09-quantity-and-risk.md: 張數/幣數/名目金額/風險換算
 - docs/HANDOVER.md: 所有FMZ使用者的公開交接指南
 - docs/VALIDATION.md: 匿名驗證範圍與限制

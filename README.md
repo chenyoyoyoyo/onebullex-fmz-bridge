@@ -15,7 +15,7 @@
 - **已有 Pine 策略**：先讀 [Pine 相容性與轉換](references/08-pine-compatibility.md)。本次成功路徑是 Pine 邏輯移植至 JavaScript；**不是原生 Pine 直接透過本 bridge 下單成功**。
 - **需要可執行範例**：[一分鐘鱷魚與碎形突破](examples/alligator-fractal/README.md)，附完整 FMZ 程式、原始 Pine、9 個參數（含張數、槓桿）、建置程式與離線測試；預設 PAPER 不下單。
 - **斯巴達專屬交易對與槓桿**：`BTCSPARTANS_USDT`、`ETHSPARTANS_USDT`、`XAUSPARTANS_USDT` 可直接使用，見 [策略介面](references/04-strategy-guide.md)的「斯巴達專屬交易對」與「槓桿」。
-- **用 TradingView 而不是 FMZ**：請改用獨立的 [OneBullEx TradingView Bridge](https://github.com/chenyoyoyoyo/onebullex-tradingview-bridge)，TradingView 警報直接打到自己主機上的接收程式，不需要 FMZ。
+- **用 TradingView 或 MT4／MT5 而不是 FMZ**：請改用獨立的 [OneBullEx TradingView & MT4／MT5 Bridge](https://github.com/chenyoyoyoyo/onebullex-tradingview-mt4-mt5-bridge)，TradingView 警報或 MT4／MT5 持倉直接送到自己主機上的接收程式，不需要 FMZ。
 - **張數怎麼算**：[數量、名目金額、保證金與風險](references/09-quantity-and-risk.md)。`Buy/Sell` 的 amount 是整數張，不是 BTC，也不是 USDT。
 
 ## 交給 AI 助手

@@ -28,7 +28,7 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 | `references/06-troubleshooting.md` | 錯誤訊息對照與處理 |
 | `references/07-convert-strategy.md` | 策略轉換：語言分流、掃描、另存與驗證 |
 | `references/08-pine-compatibility.md` | Pine 現貨執行分支的數量/持倉問題、JS移植檢查表 |
-| `references/10-tradingview.md` | TradingView 警報直接接入已移到獨立倉庫 onebullex-tradingview-bridge |
+| `references/10-tradingview.md` | TradingView 警報直接接入已移到獨立倉庫 onebullex-tradingview-mt4-mt5-bridge |
 | `references/09-quantity-and-risk.md` | 幣數/張數/名目金額/保證金/風險換算、選用的防呆設定 |
 | `docs/HANDOVER.md` | 面向所有使用者的部署與驗收交接 |
 | `docs/VALIDATION.md` | 匿名驗證範圍；不得把未驗證項目當成功 |
@@ -38,7 +38,7 @@ FMZ 沒有內建 OneBullEx，所以要透過 FMZ 的「通用協議」：`bridge
 
 ## 流程（每一步確認成功才進下一步）
 
-**使用者用 TradingView 而不是 FMZ 時**：本倉庫不處理，請使用者改用 https://github.com/chenyoyoyoyo/onebullex-tradingview-bridge ，並照那邊的 `SKILL.md` 進行。
+**使用者用 TradingView 或 MT4／MT5 而不是 FMZ 時**：本倉庫不處理，請使用者改用 https://github.com/chenyoyoyoyo/onebullex-tradingview-mt4-mt5-bridge ，並照那邊的 `SKILL.md` 進行。
 
 1. **確認前提**（`01-overview.md`）：使用者已有 FMZ 帳號、OneBullEx 核發的機器人 API key（先用測試網）、並判斷策略需要哪一種持倉模式：單一方向用淨部位，同時持有多空用雙向，同方向多筆獨立持倉用分倉（`04-strategy-guide.md`）。缺任何一項就先處理，不要往下做。
 2. **租伺服器**（`02-server-setup.md`）：雲端帳號註冊、付款、建立主機由**使用者本人**在雲端主控台操作，你負責逐步引導並說明每個選項。完成後取得固定 IP 和 SSH 登入方式。
